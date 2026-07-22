@@ -75,5 +75,15 @@ header, every date-format inconsistency. Append; don't overwrite.
 - **FBPE** — `fbpe.org/licensure/licensee-search/` (200). robots
   **`Crawl-delay: 30`** — one request / 30 s, the binding constraint on Module 3.
   Prefer directory / Ch. 119 records over per-name scraping.
-- **DBPR** — `myfloridalicense.com` (302 → app). Weekly bulk CSV/ASCII download
-  is the strongest cheap path; confirm current download URL when building.
+- **DBPR** — ✅ VERIFIED bulk CSV, strongest cheap path. Index
+  `www2.myfloridalicense.com/construction-industry/public-records/`; construction
+  extract `…/sto/file_download/extracts/CONSTRUCTIONLICENSE_1.csv` is live (48 MB,
+  text/csv, last-modified today → ~daily refresh). **No header row; positional
+  columns** — full license like `CBC015061`. Confirm DBPR's published field
+  layout before trusting column positions. Siblings: `constr_app.csv`,
+  `cilb_certified.csv`, `cilb_registered.csv`. Note the URL uses literal
+  underscores (`file_download`), not the `%5F` some pages render.
+- **Volusia adapter note** — `connectlivepermits.org/citizenportal/` → 302 →
+  `/citizenportal/app` (Accela Civic Access Angular SPA). Public-search REST
+  route is NOT at `/citizenportal/rest/*` or `/app/rest/*` (all 404); capture it
+  from the SPA's XHR with Playwright before building — don't guess.

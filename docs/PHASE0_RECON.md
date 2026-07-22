@@ -138,14 +138,32 @@ implication when the Osceola adapter is built.
 | **FL Board of Prof. Engineers** (`fbpe.py`) | `fbpe.org/licensure/licensee-search/` (200) | Licensee search + directory | Directory / Ch. 119 records | **`Crawl-delay: 30`** — very slow, must honor |
 | **DBPR** (`dbpr.py`) | `myfloridalicense.com` (302 → app) | Live search + weekly bulk file downloads | **Bulk CSV/ASCII — strongest** | tbd |
 
+- **DBPR bulk CSV — VERIFIED, the strongest cheap path.** Index:
+  `https://www2.myfloridalicense.com/construction-industry/public-records/`.
+  The construction licensee extract downloads live:
+  `https://www2.myfloridalicense.com/sto/file_download/extracts/CONSTRUCTIONLICENSE_1.csv`
+  — **48 MB, `content-type: text/csv`, `last-modified` = today** (refreshed
+  ~daily). **No header row; positional columns.** Observed layout (confirm
+  against DBPR's published field-layout doc before trusting positions):
+  `board_code, class_code (e.g. CBC = Certified Building Contractor), name
+  "LAST, FIRST", dba1, dba2, addr1, addr2, addr3, city, state, zip, county_code,
+  license_no, ?, status_code (C/I…), original_date, ?, expiry_date, …,
+  full_license_no (e.g. CBC015061), …`. Sibling extracts on the same index:
+  `constr_app.csv`, `cilb_certified.csv`, `cilb_registered.csv`. Active +
+  inactive + voluntarily-inactive only (NULL/VOID/delinquent excluded). **No
+  electrical-contractor file on this page** — find it under the electrical board
+  extracts when building `dbpr.py`.
 - **DFS `licenseesearch.fldfs.com`** confirms a **Bulk Downloads** section and a
   license category **"Industrial Fire & Burglary"** — the State Fire Marshal
   path. The bulk-download page itself is a thin JS shell (6 KB); the file
   endpoint is behind a form POST — resolve when building `sfm.py`.
 - **FBPE** `Crawl-delay: 30` is the binding constraint on Module 3 — one request
   every 30 s. Prefer the directory/records-request path over per-name scraping.
-- **DBPR** weekly bulk download remains the strongest single cheap path for
-  contractors/architects; confirm the current download URL when building.
+- **Volusia app entry (for the future adapter):** `connectlivepermits.org/
+  citizenportal/` 302s to `/citizenportal/app` (Accela Civic Access Angular SPA).
+  The public-search REST route is not at the obvious `/rest/*` guesses (all
+  404); it must be captured from the SPA's XHR traffic with Playwright before an
+  adapter is trusted — do not guess it.
 
 ---
 
