@@ -117,6 +117,43 @@ implication when the Osceola adapter is built.
   bare GET — the real app route is JS-driven; find the underlying Civic Access
   REST call, typically `/citizenportal/rest/...`, when building the adapter.)
 
+### Orange & Seminole — every access path checked (2026-07-22)
+
+Asked directly whether there's any *additional* way in beyond the WebForms
+portals. Probed live; here is the honest full picture.
+
+**Orange County — no compliant automated feed exists.**
+
+- Open data / ArcGIS: **none.** Every "Orange permits" ArcGIS org turned out to
+  be a different jurisdiction — `v400IkDOw1ad7Yad` is **Raleigh, NC**;
+  `data-ocpw.opendata.arcgis.com` is **Orange County, CALIFORNIA** (Newport
+  Beach / Santa Ana / John Wayne airport). Orange County FL's own hub
+  (`ocgis-datahub-ocfl.hub.arcgis.com`, 89 datasets) publishes zoning/planning/
+  address layers but **no building-permits layer**.
+- Accela Construct API: not applicable — Orange runs custom Fast Track, not
+  Accela (`apis.accela.com` 400s, no agency).
+- Fast Track WebForms: exists but `robots.txt` is `Disallow: /` → non-compliant
+  to scrape.
+- **Only additional path: a Ch. 119 public-records request.** Ask the Building
+  Division / records custodian (`EPlanCom@ocfl.net`, 407-836-5550) for a
+  recurring commercial-permit extract — the "ask, don't scrape" route. This is
+  realistically THE way to get Orange automatically and compliantly.
+
+**Seminole County — two real paths.**
+
+- Click2Gov BP (`semc-egov.aspgov.com/Click2GovBP/`) is live, has **no
+  robots.txt** (so no crawl prohibition), and per the county **exposes
+  plan-review agency status** — useful for Module 2. It is scrapeable within
+  polite limits, but it's session/postback-heavy (down nightly 11:30p–5a).
+  Still on Click2Gov — no EnerGov/CSS migration.
+- Seminole also runs an official **"Building Public Request Portal"** (a Ch. 119
+  records-request front door) — request a recurring extract there.
+- Open data: Seminole's ArcGIS hub exists but carries **no permits layer**;
+  Seminole participates in **CFGIS** (Central FL GIS), which also has none.
+
+Bottom line: for both counties the cleanest additional path is a standing
+records request; Seminole additionally allows polite Click2Gov scraping.
+
 ### Cheap-path ranking (revised, SPEC §2 order)
 
 1. **Documented API:** **Orlando (Socrata)** — verified, current, fire-native.

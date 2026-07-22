@@ -20,6 +20,8 @@ app = typer.Typer(
     add_completion=False,
     help="Lead intelligence for a Central Florida fire protection engineering practice.",
 )
+licensing_app = typer.Typer(add_completion=False, help="Module 3 licensing collectors.")
+app.add_typer(licensing_app, name="licensing")
 
 
 def _configure_logging(verbose: bool) -> None:
@@ -125,6 +127,39 @@ def export(
         typer.echo(f"wrote {out}")
     else:
         typer.echo(csv_text)
+
+
+@licensing_app.command("import-dbpr")
+def licensing_import_dbpr(
+    file: Path | None = typer.Option(None, "--file", help="Local DBPR CSV (skip download)."),
+    download: bool = typer.Option(False, "--download", help="Download the live DBPR extract."),
+    limit: int | None = typer.Option(None, "--limit", help="Import only first N rows."),
+    db_path: Path = typer.Option(dbmod.DEFAULT_DB_PATH, "--db"),
+) -> None:
+    """Import the DBPR construction licensee bulk CSV into person/company tables."""
+    from .licensing import dbpr
+    from .licensing.importer import import_license_records
+
+    engine = dbmod.get_engine(db_path)
+    dbmod.init_db(engine)
+
+    if download:
+        dest = Path("data/dbpr/CONSTRUCTIONLICENSE_1.csv")
+        typer.echo(f"downloading DBPR extract -> {dest} ...")
+        dbpr.download(dest)
+        file = dest
+    if not file:
+        typer.secho("provide --file PATH or --download", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    records = dbpr.parse_csv_file(file)
+    with Session(engine) as session:
+        stats_ = import_license_records(session, records, limit=limit)
+    typer.echo(
+        f"DBPR import: persons +{stats_.persons_created}/~{stats_.persons_updated} "
+        f"companies +{stats_.companies_created}/~{stats_.companies_updated} "
+        f"review_queue={stats_.queued_for_review}"
+    )
 
 
 @app.command()

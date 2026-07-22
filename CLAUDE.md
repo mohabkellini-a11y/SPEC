@@ -87,3 +87,19 @@ header, every date-format inconsistency. Append; don't overwrite.
   `/citizenportal/app` (Accela Civic Access Angular SPA). Public-search REST
   route is NOT at `/citizenportal/rest/*` or `/app/rest/*` (all 404); capture it
   from the SPA's XHR with Playwright before building — don't guess.
+
+### DBPR construction extract — parsing quirks (verified against 15k real rows)
+
+- **Headerless positional CSV.** Column map lives in `licensing/dbpr.py` (COL_*).
+  Verified across 15,485 live rows: 99.9% pass the license-reconstruction guard.
+- **`full_license` (col 20) is authoritative**, not `type+number`. DBPR inserts
+  an `A` designation and re-encodes the numeric part: type `CBC` + numeric
+  `1114582` → `CBCA14582` (the `14582` is a substring of `1114582`). Use col 20
+  as the canonical license; the guard tolerates this, only flagging real shifts.
+- **`INDIVIDUAL` in the DBA column is a sentinel, not a business name.** Sole
+  practitioners carry DBA=`INDIVIDUAL`; treating it as a company collapses
+  hundreds of unrelated licenses into one bogus "INDIVIDUAL" company. Also seen:
+  `SOLE PROPRIETOR`, `N/A`, `NONE`. Filtered in `_DBA_SENTINELS`.
+- Two status-code columns (13, 14, e.g. `C`/`I`) — semantics NOT confirmed
+  against DBPR's layout doc; stored raw as `"C/I"`, not interpreted.
+- Encoding is latin-1, not utf-8. `text/csv`, ~48 MB, last-modified daily.

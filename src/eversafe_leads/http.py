@@ -78,3 +78,9 @@ class PoliteClient:
 
     def get_json(self, url: str, **kwargs: Any) -> Any:
         return self.get(url, **kwargs).json()
+
+    def stream(self, method: str, url: str, **kwargs: Any):
+        """Rate-limited streaming request (context manager), for large files."""
+        host = httpx.URL(url).host or ""
+        self.limiter.wait(host)
+        return self._client.stream(method, url, **kwargs)

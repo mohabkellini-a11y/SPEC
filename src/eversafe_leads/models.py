@@ -225,6 +225,25 @@ class Lead(SQLModel, table=True):
     last_seen_at: datetime = Field(default_factory=utcnow)
 
 
+class ReviewQueue(SQLModel, table=True):
+    """Ambiguous entity-resolution matches (fuzzy 85–92) that must NOT auto-merge
+    (SPEC §6). A human resolves these; nothing here is applied automatically."""
+
+    __tablename__ = "review_queue"
+
+    id: int | None = Field(default=None, primary_key=True)
+    candidate_name: str
+    candidate_normalized_key: str
+    candidate_license: str | None = None
+    candidate_phone: str | None = None
+    candidate_address: str | None = None
+    matched_company_id: int | None = Field(default=None, foreign_key="company.id")
+    matched_company_name: str | None = None
+    score: float = 0.0
+    resolved: bool = False
+    first_seen_at: datetime = Field(default_factory=utcnow)
+
+
 class Signal(SQLModel, table=True):
     """A fired HOT signal (Module 2). ``dedup_key`` enforces "one alert per
     permit per review cycle, ever" (SPEC §6) via a unique index."""
