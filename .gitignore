@@ -1,0 +1,26 @@
+# EverSafe Leads — never commit collected data or secrets
+data/
+*.db
+*.sqlite
+*.sqlite3
+data/raw_html/
+data/pdfs/
+data/digests/
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.uv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
