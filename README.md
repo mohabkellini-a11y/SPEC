@@ -36,6 +36,13 @@ eversafe-leads digest --stdout   # or print it
 # Flat CSV for CRM import (scored, sorted).
 eversafe-leads export --out data/leads.csv
 
+# Import DBPR construction licensees (verified 48MB bulk CSV).
+eversafe-leads licensing import-dbpr --download
+
+# Target lists: fire-active contractors by permit volume (works today);
+# A/B become populated once the SFM/FBPE flags are collected.
+eversafe-leads targets --list fire-active --county orlando --limit 25
+
 # Row counts in the DB
 eversafe-leads stats
 ```
@@ -59,8 +66,13 @@ Optional: set `SOCRATA_APP_TOKEN` for higher Socrata throughput (never required)
   adapter. `harvest --jurisdiction orlando` writes real rows.
 - **Phase 3** — Module 2 fire-review differ + HOT signals (persistent dedup).
 - **Phase 6** — scoring engine (`config/scoring.yaml`), daily digest, CSV export.
-- Remaining: more jurisdiction adapters (Orange → records request; Osceola/
-  Seminole/Lake/Volusia), licensing collectors + target lists (Module 3), seal
+- **Module 3** — name normalization, entity resolution (exact / fuzzy≥92 /
+  85–92 review queue), the verified DBPR construction bulk-CSV collector,
+  permit-contractor → company resolution, and target lists (`targets`).
+  `fire-active` ranking works today from permit data; Lists A/B are wired and
+  become populated once the SFM (FP-contractor) and FBPE (CA / PE) flags land.
+- Remaining: SFM + FBPE collectors to fill Target Lists A/B; more jurisdiction
+  adapters (Orange → records request; Osceola/Seminole/Lake/Volusia); seal
   index (Module 4).
 
 ## Scheduling (v1: run it yourself, no hosted infra)

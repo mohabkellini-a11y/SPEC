@@ -163,6 +163,50 @@ def licensing_import_dbpr(
 
 
 @app.command()
+def targets(
+    list_: str = typer.Option("fire-active", "--list", help="A, B, or fire-active."),
+    county: str | None = typer.Option(None, "--county", help="Jurisdiction slug filter."),
+    months: int = typer.Option(12, "--months", help="Trailing permit-volume window."),
+    limit: int = typer.Option(50, "--limit"),
+    out: Path | None = typer.Option(None, "--out", help="CSV path (default: stdout)."),
+    resolve_first: bool = typer.Option(
+        True, "--resolve/--no-resolve", help="Resolve permit contractors into companies first."
+    ),
+    db_path: Path = typer.Option(dbmod.DEFAULT_DB_PATH, "--db"),
+) -> None:
+    """Emit Target List A/B (or a permit-derived fire-active ranking) as CSV."""
+    from .enrich.companies import resolve_permit_contractors
+    from .targets import target_list, to_csv
+
+    engine = dbmod.get_engine(db_path)
+    dbmod.init_db(engine)
+    with Session(engine) as session:
+        if resolve_first:
+            rstats = resolve_permit_contractors(session)
+            typer.echo(
+                f"resolved {rstats.parties_seen} parties "
+                f"(+{rstats.companies_created} companies, {rstats.linked} linked)",
+                err=True,
+            )
+        rows = target_list(session, list_, county_slug=county, months=months, limit=limit)
+        csv_text = to_csv(rows)
+
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(csv_text)
+        typer.echo(f"wrote {out} ({len(rows)} rows)")
+    else:
+        typer.echo(csv_text)
+    if not rows and list_.lower() in ("a", "b"):
+        typer.secho(
+            f"  (list {list_.upper()} is empty — needs the SFM/FBPE licensing flags; "
+            "run the licensing collectors to populate is_fp_contractor / has_engineering_ca.)",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+
+
+@app.command()
 def stats(db_path: Path = typer.Option(dbmod.DEFAULT_DB_PATH, "--db")) -> None:
     """Show row counts per jurisdiction in the DB."""
     engine = dbmod.get_engine(db_path)
