@@ -5,30 +5,62 @@ header, every date-format inconsistency. Append; don't overwrite.
 
 ## Environment gotchas
 
-- **2026-07-22 — Remote web session egress is a restrictive allow-list.**
-  Outbound HTTPS goes through an agent proxy whose upstream gateway denies the
-  target hosts at the `CONNECT` tunnel (`403`, `connect_rejected`, "policy
-  denial"). Confirmed blocked: `services.arcgis.com`, `data.cityoforlando.net`,
-  `fasttrack.ocfl.net`, `fbpe.org`. Allowed: `pypi.org`, `github.com`. Only
-  `WebSearch` reaches the outside (allowlisted search backend); `WebFetch` and
-  `curl` both 403 on the target hosts. Diagnose with
-  `curl -sS "$HTTPS_PROXY/__agentproxy/status"`. **Implication:** no scraper can
-  actually run from this environment; Phase 0 endpoint verification and the first
-  live `harvest` must happen from a machine with open egress. See
-  `docs/PHASE0_RECON.md` §0.
+- **2026-07-22 (UPDATE) — Egress is now OPEN.** The earlier CONNECT-denial
+  blocker is resolved: `curl -sS "$HTTPS_PROXY/__agentproxy/status"` reports
+  `selective:false`, no relay failures, and live requests to
+  `data.cityoforlando.net`, `services.arcgis.com`, `fbpe.org`,
+  `fasttrack.ocfl.net`, `semc-egov.aspgov.com`, `connectlivepermits.org`,
+  `c.lakecountyfl.gov`, `licenseesearch.fldfs.com`, `citizenserve.com` all
+  return 200. Phase 0 re-run and endpoint verification are done — see
+  `docs/PHASE0_RECON.md`.
+- **Osceola cert quirk (still blocking that ONE host).** `permits.osceola.org`
+  (Accela) re-signs through an *"Egress Gateway SDS Issuing CA (production)"*
+  that is **not** in `/root/.ccr/ca-bundle.crt`. curl and Python
+  (`SSL_CERT_FILE`=bundle) both fail with `unable to get local issuer
+  certificate`. The TLS tunnel connects; only chain verification fails. Before
+  building the Osceola adapter, either get that CA added to the bundle or run
+  the adapter from the practice's own box. Do **not** silently disable TLS
+  verification — flag it.
+- **(historical) The pre-2026-07-22 egress was a restrictive allow-list** that
+  403'd every target host at CONNECT. Kept here only as history; no longer true.
 
-## Portal quirks (fill in as verified against live endpoints)
+## Portal quirks (verified against live endpoints 2026-07-22)
 
-- Orlando — Socrata (`data.cityoforlando.net`, dataset `ryhf-m453`): _unverified_
-- Orange — ArcGIS FeatureServer (`services.arcgis.com/v400IkDOw1ad7Yad/...`),
-  Fast Track WebForms (`fasttrack.ocfl.net`): _unverified_
-- Osceola — Accela (`permits.osceola.org/CitizenAccess/`): _unverified_
-- Seminole — Click2Gov (`semc-egov.aspgov.com/Click2GovBP/`): _unverified_
-- Lake — Accela + custom report pages (`c.lakecountyfl.gov`): _unverified_
-- Volusia — Accela + Connect Live (`connectlivepermits.org`): _unverified_
+- **Orlando — Socrata ✅ VERIFIED (jackpot).** `data.cityoforlando.net`,
+  dataset `ryhf-m453`. SODA API `/resource/ryhf-m453.json` with
+  `$where/$select/$group/$order/$limit`. Date filter column is **`processed_date`**
+  (there is NO `application_date` — it 400s). Fire work is native in `worktype`:
+  `FireSupp` and `FA`; fire permit numbers prefixed `FIR####`. robots
+  `Crawl-delay: 1`; API path not disallowed. Review comment text is NOT in this
+  dataset — only `of_cycles` + `under_review_date` (Module 2 gets cycle-count
+  diffs, not comment quotes, from Socrata alone).
+- **Orange — ⚠️ old ArcGIS org was WRONG.** `services.arcgis.com/v400IkDOw1ad7Yad`
+  is **Raleigh, NC**, not Orange FL (sample rows say `contractorstate:"NC"`).
+  Do not use it. Orange's own `ocgis4.ocfl.net` has no public permits layer.
+  Fast Track (`fasttrack.ocfl.net`) robots.txt **`Disallow: /`** except the
+  landing page → scraping is robots-forbidden. **Route Orange to a Ch. 119
+  records request / `EPlanCom@ocfl.net`.**
+- **Osceola — Accela** `permits.osceola.org/CitizenAccess/Cap/CapHome.aspx`
+  (WebForms `__VIEWSTATE` postbacks). Reachable but cert-verification blocked in
+  this env (see gotcha above). robots unread.
+- **Seminole — Click2Gov BP** `semc-egov.aspgov.com/Click2GovBP/index.html`
+  (200, live). No robots.txt (404) → apply SPEC default 1/2s.
+- **Lake — custom report pages** `c.lakecountyfl.gov/offices/building_services/
+  permit_activity_reports/` (302 to index). robots does NOT block
+  `building_services/`. Scrape-friendly grids; Accela is secondary.
+- **Volusia — Accela Civic Access** `connectlivepermits.org/citizenportal/`.
+  robots `Allow: /` (blocks only `/publicportal/`, `/citizenportal/integration/`)
+  and explicitly allows `/citizenportal/app/public-search`. That literal path
+  404s on a bare GET (JS app) — find the underlying `/citizenportal/rest/...`
+  Civic Access call when building.
 
-## Licensing source quirks (fill in as verified)
+## Licensing source quirks (verified 2026-07-22)
 
-- SFM — CitizenServe (`citizenserve.com/120/`): _unverified_
-- FBPE — licensee search + engineering directory (`fbpe.org`): _unverified_
-- DBPR — weekly bulk CSV downloads (`myfloridalicense.com`): _unverified_
+- **SFM** — `citizenserve.com/120/` (200) + DFS `licenseesearch.fldfs.com` (200)
+  which has a **Bulk Downloads** section and category *"Industrial Fire &
+  Burglary"*. Bulk page is a thin JS shell; file endpoint is behind a form POST.
+- **FBPE** — `fbpe.org/licensure/licensee-search/` (200). robots
+  **`Crawl-delay: 30`** — one request / 30 s, the binding constraint on Module 3.
+  Prefer directory / Ch. 119 records over per-name scraping.
+- **DBPR** — `myfloridalicense.com` (302 → app). Weekly bulk CSV/ASCII download
+  is the strongest cheap path; confirm current download URL when building.
