@@ -25,8 +25,16 @@ Heavy extras are opt-in: `.[scrape]` (Playwright/selectolax), `.[pdf]`,
 # List configured jurisdictions (and which are enabled)
 eversafe-leads jurisdictions
 
-# Harvest commercial permits (Orlando is the verified, enabled source)
+# Harvest commercial permits (Orlando is the verified, enabled source).
+# This also runs the Module 2 fire-review differ and fires HOT signals.
 eversafe-leads harvest --jurisdiction orlando --since 2026-06-01
+
+# Daily brief: HOT fire-review signals first, then top-scored permits.
+eversafe-leads digest            # writes data/digests/YYYY-MM-DD.md
+eversafe-leads digest --stdout   # or print it
+
+# Flat CSV for CRM import (scored, sorted).
+eversafe-leads export --out data/leads.csv
 
 # Row counts in the DB
 eversafe-leads stats
@@ -49,8 +57,11 @@ Optional: set `SOCRATA_APP_TOKEN` for higher Socrata throughput (never required)
 - **Phase 0** — reconnaissance complete and endpoint-verified (`docs/PHASE0_RECON.md`).
 - **Phase 1** — repo, models, DB, CLI, config, and the City of Orlando (Socrata)
   adapter. `harvest --jurisdiction orlando` writes real rows.
-- Later phases: remaining adapters, review differ (Module 2), licensing +
-  target lists (Module 3), seal index (Module 4), scoring/digest/exports.
+- **Phase 3** — Module 2 fire-review differ + HOT signals (persistent dedup).
+- **Phase 6** — scoring engine (`config/scoring.yaml`), daily digest, CSV export.
+- Remaining: more jurisdiction adapters (Orange → records request; Osceola/
+  Seminole/Lake/Volusia), licensing collectors + target lists (Module 3), seal
+  index (Module 4).
 
 ## Scheduling (v1: run it yourself, no hosted infra)
 

@@ -225,6 +225,23 @@ class Lead(SQLModel, table=True):
     last_seen_at: datetime = Field(default_factory=utcnow)
 
 
+class Signal(SQLModel, table=True):
+    """A fired HOT signal (Module 2). ``dedup_key`` enforces "one alert per
+    permit per review cycle, ever" (SPEC §6) via a unique index."""
+
+    __tablename__ = "signal"
+
+    id: int | None = Field(default=None, primary_key=True)
+    permit_id: int = Field(foreign_key="permit.id", index=True)
+    kind: str  # fire_review_rejection | second_fire_cycle | stuck_in_fire_review
+    cycle_number: int = 1
+    department: str | None = None
+    status: str | None = None
+    comment_text: str | None = None
+    dedup_key: str = Field(unique=True, index=True)
+    fired_at: datetime = Field(default_factory=utcnow)
+
+
 # --------------------------------------------------------------------------- #
 # Transient adapter DTOs (never persisted directly)
 # --------------------------------------------------------------------------- #

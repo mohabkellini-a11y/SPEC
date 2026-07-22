@@ -71,7 +71,7 @@ def harvest(
     typer.echo(
         f"\n{jurisdiction}: seen={result.seen} created={result.created} "
         f"updated={result.updated} fire_related={result.fire_related} "
-        f"({since_d} .. {until_d})"
+        f"hot_signals={result.hot_signals} ({since_d} .. {until_d})"
     )
     if result.errors:
         for err in result.errors:
@@ -84,6 +84,47 @@ def harvest(
             fg=typer.colors.YELLOW,
         )
         raise typer.Exit(code=2)
+
+
+@app.command()
+def digest(
+    db_path: Path = typer.Option(dbmod.DEFAULT_DB_PATH, "--db"),
+    out_dir: Path = typer.Option(Path("data/digests"), "--out", help="Digest output dir."),
+    on_date: str | None = typer.Option(None, "--date", help="ISO date label (default: today)."),
+    stdout: bool = typer.Option(False, "--stdout", help="Print instead of writing a file."),
+) -> None:
+    """Write the daily Markdown brief: HOT fire-review signals then top permits."""
+    from .reports import build_digest, write_digest
+
+    day = date.fromisoformat(on_date) if on_date else date.today()
+    engine = dbmod.get_engine(db_path)
+    dbmod.init_db(engine)
+    with Session(engine) as session:
+        if stdout:
+            typer.echo(build_digest(session, today=day))
+        else:
+            path = write_digest(session, today=day, out_dir=out_dir)
+            typer.echo(f"wrote {path}")
+
+
+@app.command()
+def export(
+    db_path: Path = typer.Option(dbmod.DEFAULT_DB_PATH, "--db"),
+    out: Path | None = typer.Option(None, "--out", help="CSV path (default: stdout)."),
+) -> None:
+    """Export scored permits as a flat CSV for CRM import."""
+    from .reports import export_permits_csv
+
+    engine = dbmod.get_engine(db_path)
+    dbmod.init_db(engine)
+    with Session(engine) as session:
+        csv_text = export_permits_csv(session)
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(csv_text)
+        typer.echo(f"wrote {out}")
+    else:
+        typer.echo(csv_text)
 
 
 @app.command()

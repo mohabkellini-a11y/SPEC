@@ -24,6 +24,7 @@ from ..models import (
     PartyStub,
     PermitDetail,
     PermitStub,
+    ReviewStub,
 )
 from .base import JurisdictionAdapter
 
@@ -206,13 +207,17 @@ class SocrataAdapter(JurisdictionAdapter):
             parties.append(PartyStub(role=PartyRole.agent, raw_name=provider))
 
         description = _clean(row.get("project_name")) or _clean(row.get("location"))
+        record_subtype = _clean(row.get("worktype"))
+        record_type = _clean(row.get("application_type"))
+        status = _clean(row.get("application_status"))
+        cycles = _parse_int(row.get("of_cycles"))
 
-        return PermitDetail(
+        detail = PermitDetail(
             record_number=stub.record_number,
-            record_type=_clean(row.get("application_type")),
-            record_subtype=_clean(row.get("worktype")),
+            record_type=record_type,
+            record_subtype=record_subtype,
             description=description,
-            status=_clean(row.get("application_status")),
+            status=status,
             applied_date=_parse_date(row.get(self.date_field)),
             issued_date=_parse_date(row.get("issue_permit_date")),
             finaled_date=_parse_date(row.get("final_date")),
@@ -227,11 +232,34 @@ class SocrataAdapter(JurisdictionAdapter):
             lat=_parse_float(lat),
             lon=_parse_float(lon),
             portal_url=self.base_url,
-            review_cycles=_parse_int(row.get("of_cycles")),
+            review_cycles=cycles,
             source_url=stub.source_url,
             raw_payload=row,
             parties=parties,
         )
+
+        # Socrata exposes no per-cycle reviewer/status/comment — only of_cycles.
+        # For a fire permit, those cycles ARE fire-discipline review cycles, so
+        # we emit one honest ReviewStub carrying the cycle count. That lets
+        # Module 2 surface multi-cycle fire permits (second_fire_cycle) without
+        # inventing reviewer comments the dataset does not have.
+        if cycles and self._is_fire_row(record_type, record_subtype) and cycles >= 1:
+            detail.reviews.append(
+                ReviewStub(
+                    cycle_number=cycles,
+                    department="Fire",
+                    reviewer_name=None,
+                    status=status,
+                    status_date=_parse_date(row.get("under_review_date")),
+                    comment_text=None,
+                )
+            )
+        return detail
+
+    def _is_fire_row(self, record_type: str | None, record_subtype: str | None) -> bool:
+        if record_subtype in self.fire_worktypes:
+            return True
+        return bool(record_type and "fire" in record_type.lower())
 
     def is_fire_related(self, detail: PermitDetail) -> bool:
         """True if this permit is fire/life-safety work (worktype or description)."""
