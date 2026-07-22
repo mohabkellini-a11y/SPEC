@@ -1,0 +1,93 @@
+# One block per jurisdiction. Adding a new jurisdiction is a config edit plus one
+# adapter class — never a refactor (SPEC §1).
+#
+# Fields:
+#   platform     adapter key (see src/eversafe_leads/adapters/)
+#   display_name human-readable name
+#   base_url     verified live entry point (Phase 0)
+#   timezone     IANA tz
+#   rate_limit   { min_interval_seconds, jitter_seconds } per host
+#   enabled      only enabled jurisdictions run in a harvest
+#   notes        Phase 0 verification status / quirks
+
+orlando:
+  platform: socrata
+  display_name: City of Orlando
+  base_url: https://data.cityoforlando.net
+  timezone: America/New_York
+  enabled: true
+  rate_limit:
+    min_interval_seconds: 1.0   # robots.txt Crawl-delay: 1
+    jitter_seconds: 0.5
+  socrata:
+    dataset_id: ryhf-m453       # "Permit Applications" — verified live 2026-07-22
+    date_field: processed_date  # NOT application_date (that column does not exist)
+    # worktype values that are fire/life-safety native in this dataset. These
+    # always qualify a permit as a lead, even against the exclusions below.
+    fire_worktypes: [FireSupp, FA]
+    # Commercial worktypes to drop (SPEC §6: roofing/re-roof, signs, fences,
+    # pools) plus non-building noise. Fire worktypes above are never excluded.
+    exclude_worktypes: [Roof, Fence, Sign, Pool, Irrigation, Tent, Dumpster, Solar]
+  notes: >
+    VERIFIED jackpot. Socrata SODA API, no auth needed for light use.
+    Review comment text NOT in dataset (only of_cycles + under_review_date).
+
+orange:
+  platform: records_request      # no compliant automated path (Phase 0)
+  display_name: Orange County
+  base_url: https://fasttrack.ocfl.net/OnlineServices/
+  timezone: America/New_York
+  enabled: false
+  notes: >
+    Fast Track robots.txt Disallow: / (scraping forbidden); no public permits
+    FeatureServer found (the old v400IkDOw1ad7Yad org is Raleigh NC). Route to
+    a Ch. 119 records request / EPlanCom@ocfl.net. DO NOT SCRAPE.
+
+osceola:
+  platform: accela
+  display_name: Osceola County
+  base_url: https://permits.osceola.org/CitizenAccess/
+  timezone: America/New_York
+  enabled: false
+  rate_limit:
+    min_interval_seconds: 2.0
+    jitter_seconds: 1.0
+  notes: >
+    Accela ACA WebForms. Reachable but cert-chain unverifiable in the web
+    session env (SDS issuing CA not in bundle). Build/run from a box that trusts
+    the cert; do NOT disable TLS verification silently.
+
+seminole:
+  platform: click2gov
+  display_name: Seminole County
+  base_url: https://semc-egov.aspgov.com/Click2GovBP/
+  timezone: America/New_York
+  enabled: false
+  rate_limit:
+    min_interval_seconds: 2.0
+    jitter_seconds: 1.0
+  notes: CentralSquare Click2Gov BP. No robots.txt (404) -> apply default 1/2s.
+
+lake:
+  platform: lake_reports
+  display_name: Lake County
+  base_url: https://c.lakecountyfl.gov/offices/building_services/permit_activity_reports/
+  timezone: America/New_York
+  enabled: false
+  rate_limit:
+    min_interval_seconds: 2.0
+    jitter_seconds: 1.0
+  notes: Custom permit-activity report pages; robots allows building_services/.
+
+volusia:
+  platform: accela_civic
+  display_name: Volusia County
+  base_url: https://connectlivepermits.org/citizenportal/
+  timezone: America/New_York
+  enabled: false
+  rate_limit:
+    min_interval_seconds: 2.0
+    jitter_seconds: 1.0
+  notes: >
+    Accela Civic Access. robots allows /citizenportal/app/public-search; find
+    the underlying /citizenportal/rest/... call (JS app).

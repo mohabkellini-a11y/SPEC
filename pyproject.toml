@@ -1,0 +1,52 @@
+[project]
+name = "eversafe-leads"
+version = "0.1.0"
+description = "Lead intelligence for a Central Florida fire protection engineering practice"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "pydantic>=2.7",
+    "sqlmodel>=0.0.22",
+    "typer>=0.12",
+    "structlog>=24.1",
+    "tenacity>=8.3",
+    "pyyaml>=6.0",
+    "python-dateutil>=2.9",
+    "rapidfuzz>=3.9",
+]
+
+[project.optional-dependencies]
+# Heavy / platform-specific extras pulled in only when their module is built.
+scrape = ["selectolax>=0.3", "playwright>=1.44"]
+address = ["usaddress>=0.5.10"]
+pdf = ["pdfplumber>=0.11", "pypdf>=4.2", "pikepdf>=9.0", "pymupdf>=1.24"]
+ocr = ["pytesseract>=0.3.10"]
+dev = ["pytest>=8.2", "ruff>=0.5", "respx>=0.21"]
+
+[project.scripts]
+eversafe-leads = "eversafe_leads.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/eversafe_leads"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "W"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# typer's idiomatic default-argument pattern uses Option()/Argument() calls.
+"src/eversafe_leads/cli.py" = ["B008"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

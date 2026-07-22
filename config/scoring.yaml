@@ -1,0 +1,51 @@
+# Lead scoring weights (SPEC §7). Editable without touching code.
+# Every score carries a score_breakdown JSON explaining itself.
+
+signals:
+  fire_review_rejection_14d: 40      # fire review returned corrections/reject in last 14 days
+  second_plus_fire_review_cycle: 15
+  target_list_a: 30                  # FP contractor, no CA, no FP PE on record
+  target_list_b: 20                  # eng/arch firm w/ CA, recent permits, no FP PE
+  high_value_niche: 25              # data center, ESS/battery, warehouse >100k sf, ALF, high-rise, clean agent
+  valuation_over_2m: 15
+  valuation_500k_2m: 8
+  single_overloaded_engineer: 10     # contractor seals through one engineer >40 seals/yr
+  recently_contacted_30d: -50
+
+# Permit-recency ramp: full points if applied within `full_days`, decaying
+# linearly to 0 at `zero_days`.
+recency:
+  points: 10
+  full_days: 30
+  zero_days: 180
+
+# Keyword sets used by the scorer / harvester filters.
+high_value_niche_keywords:
+  - data center
+  - battery
+  - ess
+  - energy storage
+  - warehouse
+  - assisted living
+  - high-rise
+  - high rise
+  - clean agent
+
+# Departments whose reviews are fire/life-safety (SPEC §5 review watch list).
+fire_review_departments:
+  - fire
+  - life safety
+  - fire marshal
+  - fpb
+
+# Status transitions that fire a HOT signal (SPEC §6 Module 2).
+hot_review_statuses:
+  - reject
+  - denied
+  - corrections
+  - comments
+  - revise
+  - resubmit
+  - disapprov
+  - incomplete
+  - not approved

@@ -30,10 +30,23 @@ header, every date-format inconsistency. Append; don't overwrite.
   dataset `ryhf-m453`. SODA API `/resource/ryhf-m453.json` with
   `$where/$select/$group/$order/$limit`. Date filter column is **`processed_date`**
   (there is NO `application_date` — it 400s). Fire work is native in `worktype`:
-  `FireSupp` and `FA`; fire permit numbers prefixed `FIR####`. robots
+  `FireSupp` and `FA`; fire permit numbers prefixed `FIR####`. `plan_review_type`
+  is `Commercial` / `Residential 1/2` / `Residential 3 or more` / `No Plan Review
+  Type` — filter commercial on `plan_review_type = 'Commercial'`. robots
   `Crawl-delay: 1`; API path not disallowed. Review comment text is NOT in this
   dataset — only `of_cycles` + `under_review_date` (Module 2 gets cycle-count
   diffs, not comment quotes, from Socrata alone).
+  - **WAF encoding trap (cost an hour — READ THIS).** A CloudFront/WAF fronts
+    the SODA API and 403s a complex `$where` unless the query string is encoded
+    two specific ways at once: (1) **spaces as `%20`, never `+`** — a `+`
+    between quoted literals in `A AND B AND C` reads as SQL-injection and is
+    blocked; (2) **the `$` in `$where`/`$order`/`$limit` stays literal** — if
+    it's percent-encoded to `%24where` (which `urllib.parse.urlencode` does by
+    default) the request 403s. `httpx`'s `params=` dict uses `quote_plus`
+    (spaces→`+`) and trips (1). Fix: build the query string by hand with
+    `urllib.parse.quote(value, safe='')` and literal `$` keys (see
+    `adapters/socrata.py::_build_url`). Simple single-clause queries pass either
+    way, which is why `curl` (using `%20`) worked but httpx didn't.
 - **Orange — ⚠️ old ArcGIS org was WRONG.** `services.arcgis.com/v400IkDOw1ad7Yad`
   is **Raleigh, NC**, not Orange FL (sample rows say `contractorstate:"NC"`).
   Do not use it. Orange's own `ocgis4.ocfl.net` has no public permits layer.
