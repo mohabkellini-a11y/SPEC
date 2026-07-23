@@ -20,8 +20,9 @@ class LicenseRecord(BaseModel):
     source: str  # dbpr | sfm | fbpe
     licensee_name: str
     business_name: str | None = None
-    license_type: str | None = None  # class code, e.g. CBC, CGC, EC
+    license_type: str | None = None  # class code, e.g. CBC, CGC, EC, PE
     license_number: str | None = None  # canonical full number, e.g. CBC015061
+    discipline: str | None = None  # e.g. "Fire Protection", "Civil" (FBPE PEs)
     status_code: str | None = None
     address: str | None = None
     city: str | None = None

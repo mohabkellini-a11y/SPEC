@@ -39,6 +39,11 @@ eversafe-leads export --out data/leads.csv
 # Import DBPR construction licensees (verified 48MB bulk CSV).
 eversafe-leads licensing import-dbpr --download
 
+# Import FBPE rosters (PE + Certificate-of-Authorization) — obtained via the
+# directory / a Ch. 119 records request. The CA roster sets the CA / FP-PE
+# flags that Target List B needs.
+eversafe-leads licensing import-fbpe --pe-file pe.csv --ca-file ca.csv
+
 # Target lists: fire-active contractors by permit volume (works today);
 # A/B become populated once the SFM/FBPE flags are collected.
 eversafe-leads targets --list fire-active --county orlando --limit 25
@@ -71,9 +76,12 @@ Optional: set `SOCRATA_APP_TOKEN` for higher Socrata throughput (never required)
   permit-contractor → company resolution, and target lists (`targets`).
   `fire-active` ranking works today from permit data; Lists A/B are wired and
   become populated once the SFM (FP-contractor) and FBPE (CA / PE) flags land.
-- Remaining: SFM + FBPE collectors to fill Target Lists A/B; more jurisdiction
-  adapters (Orange → records request; Osceola/Seminole/Lake/Volusia); seal
-  index (Module 4).
+- **FBPE collector** — imports PE + Certificate-of-Authorization rosters and
+  sets `has_engineering_ca` / `has_fp_pe_on_record`, which lights up **Target
+  List B** (firms with a CA and permit volume but no FP-discipline PE).
+- Remaining: SFM collector (`is_fp_contractor`) to complete Target List A; more
+  jurisdiction adapters (Orange → records request; Osceola/Seminole/Lake/
+  Volusia); seal index (Module 4).
 
 ## Scheduling (v1: run it yourself, no hosted infra)
 

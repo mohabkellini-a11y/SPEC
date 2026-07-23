@@ -74,7 +74,15 @@ header, every date-format inconsistency. Append; don't overwrite.
   Burglary"*. Bulk page is a thin JS shell; file endpoint is behind a form POST.
 - **FBPE** — `fbpe.org/licensure/licensee-search/` (200). robots
   **`Crawl-delay: 30`** — one request / 30 s, the binding constraint on Module 3.
-  Prefer directory / Ch. 119 records over per-name scraping.
+  The on-page search **delegates to `myfloridalicense.com/wl11.asp?mode=0`** (an
+  opaque classic-ASP search), and the "engineering directory" download links
+  (`fbpe.org/download/39064/`, `/39067/`) resolve to **HTML landing pages, not
+  data files**. So there is no clean bulk endpoint — SPEC-preferred path is the
+  **directory / Ch. 119 records request** for a PE + CA roster. `licensing/fbpe.py`
+  imports those rosters (CSV) rather than scraping. The CA roster is the key: it
+  links firm → qualifying PE → discipline, which sets `has_engineering_ca` and
+  `has_fp_pe_on_record` — the two flags Target List B needs. Any future live
+  per-name lookup MUST honor the 30 s crawl-delay (not faked in code).
 - **DBPR** — ✅ VERIFIED bulk CSV, strongest cheap path. Index
   `www2.myfloridalicense.com/construction-industry/public-records/`; construction
   extract `…/sto/file_download/extracts/CONSTRUCTIONLICENSE_1.csv` is live (48 MB,

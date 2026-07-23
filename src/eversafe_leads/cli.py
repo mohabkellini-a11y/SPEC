@@ -162,6 +162,39 @@ def licensing_import_dbpr(
     )
 
 
+@licensing_app.command("import-fbpe")
+def licensing_import_fbpe(
+    pe_file: Path | None = typer.Option(None, "--pe-file", help="PE roster CSV."),
+    ca_file: Path | None = typer.Option(
+        None, "--ca-file", help="Certificate-of-Authorization CSV."
+    ),
+    db_path: Path = typer.Option(dbmod.DEFAULT_DB_PATH, "--db"),
+) -> None:
+    """Import FBPE PE / CA rosters and set firm CA / FP-PE flags (Target List B)."""
+    from .licensing import fbpe
+
+    if not pe_file and not ca_file:
+        typer.secho("provide --pe-file and/or --ca-file", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    engine = dbmod.get_engine(db_path)
+    dbmod.init_db(engine)
+    with Session(engine) as session:
+        pe_n = 0
+        ca_stats = None
+        if pe_file:
+            pe_n = fbpe.apply_pe_records(session, fbpe.parse_pe_roster(pe_file.read_text()))
+        if ca_file:
+            ca_stats = fbpe.apply_ca_records(session, fbpe.parse_ca_roster(ca_file.read_text()))
+    msg = f"FBPE import: +{pe_n} PE persons"
+    if ca_stats:
+        msg += (
+            f"; {ca_stats.ca_firms_flagged} firms flagged has_engineering_ca, "
+            f"{ca_stats.fp_pe_firms} with an FP PE on record"
+        )
+    typer.echo(msg)
+
+
 @app.command()
 def targets(
     list_: str = typer.Option("fire-active", "--list", help="A, B, or fire-active."),
