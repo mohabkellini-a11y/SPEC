@@ -58,9 +58,22 @@ header, every date-format inconsistency. Append; don't overwrite.
   this env (see gotcha above). robots unread.
 - **Seminole — Click2Gov BP** `semc-egov.aspgov.com/Click2GovBP/index.html`
   (200, live). No robots.txt (404) → apply SPEC default 1/2s.
-- **Lake — custom report pages** `c.lakecountyfl.gov/offices/building_services/
-  permit_activity_reports/` (302 to index). robots does NOT block
-  `building_services/`. Scrape-friendly grids; Accela is secondary.
+- **Lake — ✅ VERIFIED, custom report pages.** `c.lakecountyfl.gov/offices/
+  building_services/permit_activity_reports/permits_issued.aspx`. ASP.NET
+  WebForms: GET the page for `__VIEWSTATE`/`__VIEWSTATEGENERATOR`/
+  `__EVENTVALIDATION`, then POST `lbPermitTypes=All`, `lbCities=All`,
+  `txtStartDate`/`txtEndDate` (**MM/DD/YYYY**), `rblDetails=2`, `btnSubmit=Search
+  Now`. `rblDetails=1` is a summary; **`2` gives individual permits**. Cookies
+  from the GET must persist to the POST (httpx.Client does this). Response groups
+  permits under a type header, then two cells each: `"2026031318 ISSUED"` and
+  `"<addr> / <CITY> <desc>"`. Fire is native: `FSC` (sprinkler comm), `FALC`
+  (alarm comm), `FMC` (fire main), `FE` (suppression). **Quirks:** rows carry NO
+  per-permit date (window is the query) → `issued_date` left null; multi-word
+  cities (`Grand Island`, `Mount Dora`, `Howey-In-The-Hills`) split on the first
+  token so `city` is approximate and the rest leaks into `description` — full
+  string preserved in `raw_payload`. robots does NOT block `building_services/`.
+  Multi-value `lbPermitTypes` via httpx list-form 500s through the proxy — use
+  `All` and filter client-side (adapter does this).
 - **Volusia — Accela Civic Access** `connectlivepermits.org/citizenportal/`.
   robots `Allow: /` (blocks only `/publicportal/`, `/citizenportal/integration/`)
   and explicitly allows `/citizenportal/app/public-search`. That literal path

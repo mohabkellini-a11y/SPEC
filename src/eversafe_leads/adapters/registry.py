@@ -9,10 +9,12 @@ from __future__ import annotations
 from typing import Any
 
 from .base import JurisdictionAdapter
+from .lake_reports import LakeReportsAdapter
 from .socrata import SocrataAdapter
 
 _REGISTRY: dict[str, type[JurisdictionAdapter]] = {
     SocrataAdapter.platform: SocrataAdapter,
+    LakeReportsAdapter.platform: LakeReportsAdapter,
 }
 
 

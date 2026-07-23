@@ -25,9 +25,11 @@ Heavy extras are opt-in: `.[scrape]` (Playwright/selectolax), `.[pdf]`,
 # List configured jurisdictions (and which are enabled)
 eversafe-leads jurisdictions
 
-# Harvest commercial permits (Orlando is the verified, enabled source).
-# This also runs the Module 2 fire-review differ and fires HOT signals.
+# Harvest commercial permits. Two live jurisdictions are enabled: orlando
+# (Socrata API) and lake (ASP.NET report postback). This also runs the Module 2
+# fire-review differ and fires HOT signals.
 eversafe-leads harvest --jurisdiction orlando --since 2026-06-01
+eversafe-leads harvest --jurisdiction lake --since 2026-06-01
 
 # Daily brief: HOT fire-review signals first, then top-scored permits.
 eversafe-leads digest            # writes data/digests/YYYY-MM-DD.md
@@ -69,6 +71,9 @@ Optional: set `SOCRATA_APP_TOKEN` for higher Socrata throughput (never required)
 - **Phase 0** — reconnaissance complete and endpoint-verified (`docs/PHASE0_RECON.md`).
 - **Phase 1** — repo, models, DB, CLI, config, and the City of Orlando (Socrata)
   adapter. `harvest --jurisdiction orlando` writes real rows.
+- **Phase 2 (in progress)** — Lake County adapter live (ASP.NET WebForms
+  postback over `permits_issued.aspx`); a second jurisdiction harvesting real
+  commercial fire permits.
 - **Phase 3** — Module 2 fire-review differ + HOT signals (persistent dedup).
 - **Phase 6** — scoring engine (`config/scoring.yaml`), daily digest, CSV export.
 - **Module 3** — name normalization, entity resolution (exact / fuzzy≥92 /

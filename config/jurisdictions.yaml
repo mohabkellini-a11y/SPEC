@@ -73,11 +73,14 @@ lake:
   display_name: Lake County
   base_url: https://c.lakecountyfl.gov/offices/building_services/permit_activity_reports/
   timezone: America/New_York
-  enabled: false
+  enabled: true
   rate_limit:
     min_interval_seconds: 2.0
     jitter_seconds: 1.0
-  notes: Custom permit-activity report pages; robots allows building_services/.
+  notes: >
+    VERIFIED. permits_issued.aspx ASP.NET WebForms postback (VIEWSTATE + date
+    range). Fire-native types (FSC/FALC/FMC/FE). robots allows building_services/.
+    Rows carry no per-permit date (window is the query) -> issued_date null.
 
 volusia:
   platform: accela_civic

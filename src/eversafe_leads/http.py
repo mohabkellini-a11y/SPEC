@@ -79,6 +79,21 @@ class PoliteClient:
     def get_json(self, url: str, **kwargs: Any) -> Any:
         return self.get(url, **kwargs).json()
 
+    @retry(
+        retry=retry_if_exception_type((httpx.TransportError, httpx.HTTPStatusError)),
+        stop=stop_after_attempt(4),
+        wait=wait_exponential(multiplier=1, min=2, max=16),
+        reraise=True,
+    )
+    def post(self, url: str, **kwargs: Any) -> httpx.Response:
+        """Rate-limited POST. Cookies set on a prior GET persist on the client
+        (needed for ASP.NET WebForms __VIEWSTATE postbacks)."""
+        host = httpx.URL(url).host or ""
+        self.limiter.wait(host)
+        resp = self._client.post(url, **kwargs)
+        resp.raise_for_status()
+        return resp
+
     def stream(self, method: str, url: str, **kwargs: Any):
         """Rate-limited streaming request (context manager), for large files."""
         host = httpx.URL(url).host or ""
