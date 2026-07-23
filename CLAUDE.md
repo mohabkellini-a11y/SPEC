@@ -82,9 +82,16 @@ header, every date-format inconsistency. Append; don't overwrite.
 
 ## Licensing source quirks (verified 2026-07-22)
 
-- **SFM** — `citizenserve.com/120/` (200) + DFS `licenseesearch.fldfs.com` (200)
-  which has a **Bulk Downloads** section and category *"Industrial Fire &
-  Burglary"*. Bulk page is a thin JS shell; file endpoint is behind a form POST.
+- **SFM** — F.S. 633 fire-protection contractor licenses (Contractor I–V) live
+  in the SFM **CitizenServe** portal `citizenserve.com/120/`. Verified: it's a
+  heavy JS app — `showSearchLicensePage&installationID=120` returns a 137 KB page
+  whose license search renders via XHR; the static HTML exposes only
+  permit/complaint AJAX actions (`getPermitDetail`, `listInspections`…), **no
+  scrapeable license-search endpoint or result schema**. So `licensing/sfm.py`
+  imports a roster CSV (records request / portal export), resolves firms, and
+  sets `is_fp_contractor` — the flag Target List A needs. **Do NOT** use DFS
+  `licenseesearch.fldfs.com` "Industrial Fire & Burglary" for this — that
+  category is alarm/insurance agents, not Ch. 633 system contractors.
 - **FBPE** — `fbpe.org/licensure/licensee-search/` (200). robots
   **`Crawl-delay: 30`** — one request / 30 s, the binding constraint on Module 3.
   The on-page search **delegates to `myfloridalicense.com/wl11.asp?mode=0`** (an

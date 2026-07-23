@@ -195,6 +195,24 @@ def licensing_import_fbpe(
     typer.echo(msg)
 
 
+@licensing_app.command("import-sfm")
+def licensing_import_sfm(
+    file: Path = typer.Option(..., "--file", help="SFM fire-protection contractor roster CSV."),
+    db_path: Path = typer.Option(dbmod.DEFAULT_DB_PATH, "--db"),
+) -> None:
+    """Import an SFM (State Fire Marshal) FP-contractor roster; sets is_fp_contractor (Target List A)."""
+    from .licensing import sfm
+
+    engine = dbmod.get_engine(db_path)
+    dbmod.init_db(engine)
+    with Session(engine) as session:
+        stats_ = sfm.apply_sfm_records(session, sfm.parse_sfm_roster(file.read_text()))
+    typer.echo(
+        f"SFM import: {stats_.firms_flagged} firms flagged is_fp_contractor "
+        f"(+{stats_.companies_created} new)"
+    )
+
+
 @app.command()
 def targets(
     list_: str = typer.Option("fire-active", "--list", help="A, B, or fire-active."),
