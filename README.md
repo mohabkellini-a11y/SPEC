@@ -96,6 +96,21 @@ Optional: set `SOCRATA_APP_TOKEN` for higher Socrata throughput (never required)
 - Remaining: more jurisdiction adapters (Orange → records request; Osceola/
   Seminole/Volusia); seal index (Module 4); incremental watermark crawl.
 
+## Lead dashboard
+
+`scripts/build_dashboard.py` harvests the enabled jurisdictions and renders a
+single self-contained HTML dashboard — the monthly call list of fire-active
+contractors (with phones, nationals flagged) plus the top-scored permits. Every
+figure is live; nothing illustrative.
+
+```bash
+python scripts/build_dashboard.py --out data/dashboard.html --months 6
+```
+
+It is designed to be regenerated monthly and republished to the same hosted
+dashboard page. A companion CSV call list comes from
+`eversafe-leads targets --list fire-active --county orlando --out <file>`.
+
 ## Scheduling (v1: run it yourself, no hosted infra)
 
 Daily harvest via cron (adjust paths):
