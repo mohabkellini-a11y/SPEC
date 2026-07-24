@@ -257,6 +257,91 @@ def targets(
         )
 
 
+@app.command("ingest-seals")
+def ingest_seals(
+    pdf: Path = typer.Option(..., "--pdf", help="Local drawing-set PDF to extract seals from."),
+    permit: str = typer.Option(..., "--permit", help="Permit record_number to attach the seal to."),
+    jurisdiction: str = typer.Option(..., "--jurisdiction", "-j", help="Jurisdiction slug."),
+    db_path: Path = typer.Option(dbmod.DEFAULT_DB_PATH, "--db"),
+) -> None:
+    """Extract sealing engineers from a drawing-set PDF and attach them to a permit."""
+    from .seals import pipeline
+
+    engine = dbmod.get_engine(db_path)
+    dbmod.init_db(engine)
+    with Session(engine) as session:
+        juris = session.exec(select(Jurisdiction).where(Jurisdiction.slug == jurisdiction)).first()
+        if juris is None:
+            typer.secho(f"unknown jurisdiction '{jurisdiction}'", fg=typer.colors.RED)
+            raise typer.Exit(code=1)
+        perm = session.exec(
+            select(Permit).where(Permit.jurisdiction_id == juris.id, Permit.record_number == permit)
+        ).first()
+        if perm is None:
+            typer.secho(
+                f"permit '{permit}' not found in {jurisdiction} — harvest it first",
+                fg=typer.colors.RED,
+            )
+            raise typer.Exit(code=1)
+
+        from .models import Document
+
+        doc = session.exec(
+            select(Document).where(Document.permit_id == perm.id, Document.portal_url == str(pdf))
+        ).first()
+        if doc is None:
+            doc = Document(
+                permit_id=perm.id, title=pdf.name, portal_url=str(pdf), local_path=str(pdf)
+            )
+            session.add(doc)
+            session.commit()
+            session.refresh(doc)
+
+        extractions = pipeline.extract_from_pdf(pdf)
+        written = pipeline.persist_seals(session, doc.id, extractions)
+
+    if not written:
+        typer.secho(
+            "no seal found in the PDF (no signature, text, or OCR match).", fg=typer.colors.YELLOW
+        )
+        return
+    for s in written:
+        typer.echo(
+            f"{s.extraction_method.value:18s} conf={s.confidence:.2f} "
+            f"{s.engineer_name or '?'} {s.license_number or ''} [{s.discipline or ''}]"
+        )
+
+
+@app.command()
+def seals(
+    county: str | None = typer.Option(None, "--county", help="Jurisdiction slug filter."),
+    since: str | None = typer.Option(None, "--since", help="ISO date filter on permit date."),
+    db_path: Path = typer.Option(dbmod.DEFAULT_DB_PATH, "--db"),
+) -> None:
+    """Show sealing engineers: PE number, seal count, distinct clients, counties."""
+    from .seals.intelligence import engineer_summary
+
+    since_d = date.fromisoformat(since) if since else None
+    engine = dbmod.get_engine(db_path)
+    dbmod.init_db(engine)
+    with Session(engine) as session:
+        rows = engineer_summary(session, county=county, since=since_d)
+
+    if not rows:
+        typer.secho(
+            "No seals on record. Module 4 needs downloadable drawing-set PDFs; no enabled "
+            "jurisdiction exposes them yet (see docs/PHASE0_RECON.md). Ingest documents first.",
+            fg=typer.colors.YELLOW,
+        )
+        return
+    typer.echo(f"{'Engineer':28s} {'PE':10s} {'Seals':>5s} {'Clients':>7s}  Counties")
+    for r in rows:
+        typer.echo(
+            f"{(r.engineer_name or '?')[:28]:28s} {(r.license_number or '')[:10]:10s} "
+            f"{r.seal_count:>5d} {len(r.clients):>7d}  {','.join(sorted(r.counties))}"
+        )
+
+
 @app.command()
 def stats(db_path: Path = typer.Option(dbmod.DEFAULT_DB_PATH, "--db")) -> None:
     """Show row counts per jurisdiction in the DB."""

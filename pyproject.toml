@@ -22,7 +22,7 @@ scrape = ["selectolax>=0.3", "playwright>=1.44"]
 address = ["usaddress>=0.5.10"]
 pdf = ["pdfplumber>=0.11", "pypdf>=4.2", "pikepdf>=9.0", "pymupdf>=1.24"]
 ocr = ["pytesseract>=0.3.10"]
-dev = ["pytest>=8.2", "ruff>=0.5", "respx>=0.21"]
+dev = ["pytest>=8.2", "ruff>=0.5", "respx>=0.21", "pdfplumber>=0.11", "pypdf>=4.2", "pikepdf>=9.0"]
 
 [project.scripts]
 eversafe-leads = "eversafe_leads.cli:app"

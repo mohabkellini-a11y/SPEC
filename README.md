@@ -53,6 +53,12 @@ eversafe-leads licensing import-sfm --file sfm.csv
 # Target List A / B (populated once the SFM / FBPE rosters are imported).
 eversafe-leads targets --list A --county orlando --limit 50
 
+# Module 4 — seal index. Extract the sealing engineer from a drawing-set PDF
+# (digital signature -> PDF text -> OCR), validate the PE against FBPE data,
+# and attach it to a harvested permit. Then report sealing engineers.
+eversafe-leads ingest-seals --pdf plans.pdf --permit 2026070589 -j lake
+eversafe-leads seals --county lake --since 2025-01-01
+
 # Target lists: fire-active contractors by permit volume (works today);
 # A/B become populated once the SFM/FBPE flags are collected.
 eversafe-leads targets --list fire-active --county orlando --limit 25
@@ -93,8 +99,16 @@ Optional: set `SOCRATA_APP_TOKEN` for higher Socrata throughput (never required)
   **both Target List A and Target List B**. Live search for both is a JS-portal /
   crawl-delayed path, so rosters (records request / export) are the honest cheap
   path; the analysis machinery is complete.
+- **Module 4 (seal index)** — extraction cascade (digital signature 0.98 → PDF
+  text 0.85 → OCR 0.60), PE/CA regex, FBPE cross-validation, and the sealing-
+  engineer intelligence report (`seals`). Feed drawing sets with `ingest-seals`.
+  Note: no enabled jurisdiction exposes downloadable approved drawing sets yet,
+  so the auto-download step awaits a document-serving portal (e.g. Accela Civic
+  Access document endpoints) — the extraction/intelligence pipeline is complete
+  and works on any PDF you provide today.
 - Remaining: more jurisdiction adapters (Orange → records request; Osceola/
-  Seminole/Volusia); seal index (Module 4); incremental watermark crawl.
+  Seminole/Volusia); document auto-download for Module 4; incremental watermark
+  crawl.
 
 ## Lead dashboard
 
