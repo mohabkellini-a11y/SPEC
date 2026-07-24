@@ -84,9 +84,11 @@ Optional: set `SOCRATA_APP_TOKEN` for higher Socrata throughput (never required)
 - **Phase 0** — reconnaissance complete and endpoint-verified (`docs/PHASE0_RECON.md`).
 - **Phase 1** — repo, models, DB, CLI, config, and the City of Orlando (Socrata)
   adapter. `harvest --jurisdiction orlando` writes real rows.
-- **Phase 2 (in progress)** — Lake County adapter live (ASP.NET WebForms
-  postback over `permits_issued.aspx`); a second jurisdiction harvesting real
-  commercial fire permits.
+- **Phase 2** — three live jurisdictions: Orlando (Socrata), Lake (ASP.NET
+  report postback), and Volusia (generic ArcGIS FeatureServer adapter). The
+  other three are honestly not automatable: Orange (`robots: Disallow /`) and
+  Seminole (public search is lookup-only, no date-range discovery) → records
+  request; Osceola (Accela) → cert unverifiable in this environment.
 - **Phase 3** — Module 2 fire-review differ + HOT signals (persistent dedup).
 - **Phase 6** — scoring engine (`config/scoring.yaml`), daily digest, CSV export.
 - **Module 3** — name normalization, entity resolution (exact / fuzzy≥92 /

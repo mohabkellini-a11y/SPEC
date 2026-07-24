@@ -137,14 +137,15 @@ def render(data: dict, since: dt.date, until: dt.date) -> str:
     juris = data["juris"]
     orl = juris.get("orlando", 0)
     lake = juris.get("lake", 0)
+    vol = juris.get("volusia", 0)
 
     # jurisdiction chips
     jchips = [
         f'<span class="jchip on">Orlando · Socrata API · {orl:,}</span>',
         f'<span class="jchip on">Lake · report postback · {lake:,}</span>',
+        f'<span class="jchip on">Volusia · ArcGIS layer · {vol:,}</span>',
         '<span class="jchip off">Orange · records request</span>',
-        '<span class="jchip off">Volusia · Accela SPA</span>',
-        '<span class="jchip off">Seminole · Click2Gov</span>',
+        '<span class="jchip off">Seminole · lookup-only</span>',
         '<span class="jchip off">Osceola · cert-blocked</span>',
     ]
 
@@ -198,6 +199,7 @@ def render(data: dict, since: dt.date, until: dt.date) -> str:
         "@@CALLROWS@@": "\n".join(call_rows),
         "@@SCOREDROWS@@": "\n".join(scored_rows),
         "@@CALLN@@": str(len(data["call"])),
+        "@@NJUR@@": str(sum(1 for v in juris.values() if v)),
     }
     for k, v in repl.items():
         tmpl = tmpl.replace(k, v)
@@ -317,7 +319,7 @@ _TEMPLATE = r"""<title>EverSafe — Lead Dashboard</title>
   </header>
 
   <div class="stats">
-    <div class="stat"><div class="n">@@TOTAL@@</div><div class="l">commercial permits · 2 counties</div></div>
+    <div class="stat"><div class="n">@@TOTAL@@</div><div class="l">commercial permits · @@NJUR@@ counties</div></div>
     <div class="stat"><div class="n ember">@@FIRE@@</div><div class="l">fire / life-safety permits</div></div>
     <div class="stat"><div class="n">@@SIGNALS@@</div><div class="l">review-churn signals fired</div></div>
     <div class="stat"><div class="n">@@FIRMS@@</div><div class="l">firms resolved &amp; deduped</div></div>

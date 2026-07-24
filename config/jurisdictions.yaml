@@ -83,14 +83,31 @@ lake:
     Rows carry no per-permit date (window is the query) -> issued_date null.
 
 volusia:
-  platform: accela_civic
+  platform: arcgis
   display_name: Volusia County
-  base_url: https://connectlivepermits.org/citizenportal/
+  base_url: https://maps5.vcgov.org/arcgis/rest/services/CurrentProjects/MapServer/1
   timezone: America/New_York
-  enabled: false
+  enabled: true
   rate_limit:
-    min_interval_seconds: 2.0
-    jitter_seconds: 1.0
+    min_interval_seconds: 1.0
+    jitter_seconds: 0.5
+  arcgis:
+    layer_url: https://maps5.vcgov.org/arcgis/rest/services/CurrentProjects/MapServer/1
+    date_field: INDATE
+    record_field: REFERENCEFILE
+    type_field: FOLDERTYPE
+    fire_types: [FIRE]
+    commercial_types: [COM]
+    field_map:
+      address: FOLDERNAME
+      description: FOLDERDESCRIPTION
+      status: STATUSDESC
+      parcel_id: PID
+      portal_url: FOLDERLINK
+      type_label: folderdesc
   notes: >
-    Accela Civic Access. robots allows /citizenportal/app/public-search; find
-    the underlying /citizenportal/rest/... call (JS app).
+    VERIFIED. ArcGIS "GRM's AMANDA OPEN Permits" layer (open permits snapshot,
+    ~2,930 rows). Native FIRE + COM folder types; INDATE date field. No
+    contractor field (like Lake). The Accela Civic Access SPA (connectlivepermits
+    .org) was the earlier plan but its REST endpoint needs browser XHR capture;
+    this ArcGIS layer is the clean cheap path and avoids it.

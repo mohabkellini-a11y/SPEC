@@ -74,11 +74,21 @@ header, every date-format inconsistency. Append; don't overwrite.
   string preserved in `raw_payload`. robots does NOT block `building_services/`.
   Multi-value `lbPermitTypes` via httpx list-form 500s through the proxy — use
   `All` and filter client-side (adapter does this).
-- **Volusia — Accela Civic Access** `connectlivepermits.org/citizenportal/`.
-  robots `Allow: /` (blocks only `/publicportal/`, `/citizenportal/integration/`)
-  and explicitly allows `/citizenportal/app/public-search`. That literal path
-  404s on a bare GET (JS app) — find the underlying `/citizenportal/rest/...`
-  Civic Access call when building.
+- **Volusia — ✅ VERIFIED via ArcGIS (not the SPA).** The Accela Civic Access
+  SPA (`connectlivepermits.org/citizenportal/`) is a dead end from this env:
+  Chromium can't reach it through the egress proxy (`ERR_CONNECTION_RESET`, even
+  with `--disable-quic` + proxy set), so the REST route can't be XHR-captured
+  here. **Use the open-data ArcGIS layer instead:** "GRM's AMANDA OPEN Permits"
+  at `maps5.vcgov.org/arcgis/rest/services/CurrentProjects/MapServer/1` (~2,930
+  open permits). Native `FIRE` + `COM` folder types, `INDATE` date field,
+  `REFERENCEFILE` record number, `FOLDERNAME` = "addr, CITY ZIP". No contractor
+  field (like Lake). Handled by the generic `adapters/arcgis.py`.
+- **Seminole — lookup-only, no date-range discovery.** Both Click2Gov
+  (`selectpermit.html`, needs `OWASP_CSRFTOKEN`) and the
+  `scccap01.seminolecountyfl.gov/buildingpermitwebinquiry/` ASP.NET app search
+  only by permit number / address / parcel — you can't enumerate *new* permits
+  by date. So Seminole can't feed the harvester; route it to a Ch. 119 records
+  request for a date-range extract (like Orange).
 
 ## Licensing source quirks (verified 2026-07-22)
 

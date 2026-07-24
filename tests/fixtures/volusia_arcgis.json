@@ -1,0 +1,26 @@
+{
+  "features": [
+    {"attributes": {
+      "REFERENCEFILE": "20260429058",
+      "FOLDERTYPE": "FIRE",
+      "folderdesc": "Fire Permit",
+      "FOLDERDESCRIPTION": "Install NFPA 13R wet sprinkler system starting at riser",
+      "STATUSDESC": "Plan Review",
+      "INDATE": 1777766400000,
+      "FOLDERNAME": "2360 OCEAN SHORE Boulevard, ORMOND BEACH 32176",
+      "PID": "421809000010",
+      "FOLDERLINK": "https://connectlivepermits.org/citizenportal/integration/directLink.jsp?x=1"
+    }},
+    {"attributes": {
+      "REFERENCEFILE": "20260428041",
+      "FOLDERTYPE": "COM",
+      "folderdesc": "Commercial Permit",
+      "FOLDERDESCRIPTION": "Small exterior stucco repair. Electrical permit separate.",
+      "STATUSDESC": "Issued",
+      "INDATE": 1777680000000,
+      "FOLDERNAME": "1035 OCEAN SHORE Boulevard, ORMOND BEACH 32176",
+      "PID": "421809000020",
+      "FOLDERLINK": "https://connectlivepermits.org/citizenportal/integration/directLink.jsp?x=2"
+    }}
+  ]
+}
