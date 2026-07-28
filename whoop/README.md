@@ -19,7 +19,7 @@ and not WHOOP's proprietary scores.
 | 1 | Read-only dashboard, today's metrics | **done** |
 | 2 | Trends + 7/30/90-day charts | **done** |
 | 3 | Habit journal + workout log | **done** |
-| 4 | BLE alarm + countdown timer | not started |
+| 4 | BLE alarm + countdown timer | **bench test ready** — needs your strap |
 | 5 | PWA packaging, correlations, export | not started |
 
 Endpoints for unbuilt phases are absent rather than stubbed with fake data. The
@@ -248,12 +248,14 @@ method and its caveats.
 ## Tests
 
 ```bash
-python -m pytest tests/ -q      # 357 tests
+python -m pytest tests/ -q      # 469 tests
 python tools/verify_ble_frame.py
 ```
 
 - `tests/test_ble_frame.py` — the frame format against 39 captured packets:
   length field, header CRC-8, trailing CRC-32, alarm and command payload layout.
+- `tests/test_ble_packets.py` — every command builder rebuilds a captured frame
+  byte for byte, and the unverified commands raise instead of guessing.
 - `tests/test_noop_adapter.py` — schema resolution (snake_case *and* camelCase),
   read-only enforcement, overrides, stage decoding, cold-start nulls.
 - `tests/test_analytics.py` — rolling means, period deltas, slopes and coverage
@@ -294,8 +296,11 @@ web/                vendored SPA (no build step, no external requests)
   chart.js          SVG line, bar and scatter; nulls break the path, never bridged
   journal.js        fast daily entry
   workouts.js       suggestions, manual entry, history
+app/ble/
+  packets.py        WHOOP frame codec + command builders (pure, no radio)
 tools/
   verify_ble_frame.py   reproducible BLE frame verification
+  bench_strap.py        Phase 4 hardware bench test — see docs/PHASE4_BENCH.md
   make_fixture.py       synthetic NOOP-shaped database
 tests/
 SCHEMA_NOTES.md     what NOOP's data model is, and what could not be verified

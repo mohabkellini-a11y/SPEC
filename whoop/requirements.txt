@@ -2,6 +2,7 @@ fastapi>=0.110
 uvicorn[standard]>=0.27
 python-dotenv>=1.0
 
-# Phase 4 (BLE). Not imported yet — see BLE_NOTES.md 4.2 for why the transport
+# Phase 4 (BLE). Imported only by tools/bench_strap.py so far — the dashboard
+# itself does not touch the radio yet. See BLE_NOTES.md 4.2 for why the transport
 # is behind an interface with more than one possible backend.
-# bleak>=0.22
+bleak>=0.22
