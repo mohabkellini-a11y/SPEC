@@ -11,13 +11,13 @@ and not WHOOP's proprietary scores.
 
 ---
 
-## Status: Phase 1 of 5
+## Status: Phase 2 of 5
 
 | Phase | Scope | State |
 |-------|-------|-------|
 | 0 | Schema + BLE investigation | **done** — `SCHEMA_NOTES.md`, `BLE_NOTES.md` |
 | 1 | Read-only dashboard, today's metrics | **done** |
-| 2 | Trends + 7/30/90-day charts | not started |
+| 2 | Trends + 7/30/90-day charts | **done** |
 | 3 | Habit journal + workout log | not started |
 | 4 | BLE alarm + countdown timer | not started |
 | 5 | PWA packaging, correlations, export | not started |
@@ -25,6 +25,9 @@ and not WHOOP's proprietary scores.
 Endpoints for unbuilt phases are absent rather than stubbed with fake data. The
 one exception is `GET /api/strap/state`, which exists so the UI can display the
 truth — that nothing is connected to the strap yet.
+
+The correlations view is Phase 5, because it needs the habit journal from
+Phase 3 to correlate anything against.
 
 ---
 
@@ -176,6 +179,15 @@ unchanged after a read cycle.
 - Strap battery is very likely **not stored** by NOOP at all — it is not a field
   on its daily record. The tile says so instead of showing 0%.
 
+### Gaps stay gaps
+A day the strap was not worn is a hole in the chart, not an interpolated point.
+Series are densified against a full calendar range so a missing row becomes an
+explicit `null`; the rolling mean counts *days*, not readings, so a stale value
+cannot drift forward across a gap; and every chart shows a coverage bar reading
+"36 of 90 days" so a 90-day average over 36 nights cannot pass for a full one.
+A period-over-period delta that is too sparse to mean anything renders as
+"not enough data to compare" instead of a number.
+
 ### Every metric is labelled
 `app/metrics_meta.py` carries the label, unit, computation method and
 approximation status for every displayed value. The UI renders tiles *from* that
@@ -193,6 +205,7 @@ method and its caveats.
 | `GET /api/metrics/meta` | Label/unit/method/approximation for every metric |
 | `GET /api/today?day=YYYY-MM-DD&fallback=` | Today's (or a given day's) metrics |
 | `GET /api/heart-rate?day=&max_points=` | Decimated HR samples for a day |
+| `GET /api/trends?days=&metrics=&end=&rolling=` | Daily series, rolling mean, period delta |
 | `GET /api/strap/state` | BLE connection state (Phase 1: always idle) |
 | `GET /api/docs` | OpenAPI browser |
 
@@ -201,7 +214,7 @@ method and its caveats.
 ## Tests
 
 ```bash
-python -m pytest tests/ -q      # 217 tests
+python -m pytest tests/ -q      # 265 tests
 python tools/verify_ble_frame.py
 ```
 
@@ -209,7 +222,18 @@ python tools/verify_ble_frame.py
   length field, header CRC-8, trailing CRC-32, alarm and command payload layout.
 - `tests/test_noop_adapter.py` — schema resolution (snake_case *and* camelCase),
   read-only enforcement, overrides, stage decoding, cold-start nulls.
+- `tests/test_analytics.py` — rolling means, period deltas, slopes and coverage
+  on hand-checkable inputs. Mostly about gaps not silently becoming numbers.
 - `tests/test_api.py` — the honest-empty-state contract and every failure mode.
+
+To see the gap handling for yourself, build a fixture and delete some days:
+
+```bash
+python tools/make_fixture.py --days 60 --out data/sparse.sqlite3
+sqlite3 data/sparse.sqlite3 "DELETE FROM daily_metrics WHERE day BETWEEN '2026-06-20' AND '2026-06-29'"
+```
+
+The charts break the line across the hole and the coverage bar turns amber.
 
 ---
 
@@ -219,10 +243,12 @@ python tools/verify_ble_frame.py
 app/
   config.py         .env loading
   noop_adapter.py   THE schema boundary — read-only, runtime-resolved
+  analytics.py      descriptive stats over daily series (pure functions)
   metrics_meta.py   label/unit/method/approximation for every metric
   probe.py          schema discovery CLI
   main.py           FastAPI
 web/                vendored SPA (no build step, no external requests)
+  chart.js          SVG line charts; nulls break the path, never bridged
 tools/
   verify_ble_frame.py   reproducible BLE frame verification
   make_fixture.py       synthetic NOOP-shaped database

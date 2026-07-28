@@ -203,3 +203,143 @@ def test_explicit_day_without_fallback_reports_no_data_not_a_redirect(client: Te
     body = client.get("/api/today?day=2000-01-01&fallback=false").json()
     assert body["has_data"] is False
     assert body["fell_back"] is False
+
+
+# --- trends (Phase 2) ------------------------------------------------------
+
+
+def test_trends_returns_all_default_metrics(client: TestClient):
+    body = client.get("/api/trends?days=30").json()
+    meta = client.get("/api/metrics/meta").json()
+    assert set(body["series"]) == set(meta["trend_metrics"])
+    assert body["rows_found"] == 30
+    for series in body["series"].values():
+        assert series["has_data"] is True
+        assert len(series["days"]) == len(series["values"]) == len(series["rolling"]) == 30
+
+
+def test_trends_window_lengths(client: TestClient):
+    for days in (7, 30, 90):
+        body = client.get(f"/api/trends?days={days}").json()
+        assert len(body["series"]["recovery"]["days"]) == days
+
+
+def test_trends_range_ends_on_the_requested_day(client: TestClient):
+    body = client.get("/api/trends?days=7&end=2026-07-10").json()
+    assert body["end_day"] == "2026-07-10"
+    assert body["start_day"] == "2026-07-04"
+    assert body["series"]["recovery"]["days"][-1] == "2026-07-10"
+
+
+def test_trends_rejects_unknown_metric(client: TestClient):
+    res = client.get("/api/trends?metrics=vibes")
+    assert res.status_code == 400
+    assert "vibes" in res.json()["detail"]
+
+
+def test_trends_rejects_live_only_metrics(client: TestClient):
+    """HR and battery have no per-day history; charting them would be a lie."""
+    for metric in ("heart_rate", "battery"):
+        res = client.get(f"/api/trends?metrics={metric}")
+        assert res.status_code == 400
+        assert "live reading" in res.json()["detail"]
+
+
+def test_trends_subset_selection(client: TestClient):
+    body = client.get("/api/trends?days=14&metrics=recovery,strain").json()
+    assert set(body["series"]) == {"recovery", "strain"}
+
+
+def test_trends_marks_unresolved_columns_unavailable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A field NOOP's DB does not have is reported, not charted as flat."""
+    import sqlite3
+    db = tmp_path / "partial.sqlite3"
+    build(db, days=20, camel=False, cold_start=False)
+    conn = sqlite3.connect(db)
+    conn.executescript(
+        "ALTER TABLE daily_metrics RENAME TO old;"
+        "CREATE TABLE daily_metrics AS SELECT day, recovery, avg_hrv, strain FROM old;"
+        "DROP TABLE old;"
+    )
+    conn.commit()
+    conn.close()
+
+    body = make_client(db, monkeypatch).get("/api/trends?days=10").json()
+    assert body["series"]["resting_hr"]["unavailable"] is True
+    assert "not a column" in body["series"]["resting_hr"]["reason"]
+    assert body["series"]["recovery"]["unavailable"] is False
+
+
+def test_trends_preserves_gaps(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    import sqlite3
+    db = tmp_path / "gappy.sqlite3"
+    build(db, days=20, camel=False, cold_start=False)
+    conn = sqlite3.connect(db)
+    days = [r[0] for r in conn.execute("SELECT day FROM daily_metrics ORDER BY day")]
+    conn.executemany("DELETE FROM daily_metrics WHERE day = ?", [(d,) for d in days[5:12]])
+    conn.commit()
+    conn.close()
+
+    body = make_client(db, monkeypatch).get("/api/trends?days=20").json()
+    # avg_hrv is populated every night, so every None here is a deleted row.
+    series = body["series"]["avg_hrv"]
+    assert series["summary"]["n_values"] == 13
+    assert series["summary"]["coverage"] < 1.0
+    # A gap must never be bridged by an interpolated value.
+    assert len([v for v in series["values"] if v is None]) == 7
+
+    # A NULL column counts as a gap too: recovery is nil for NOOP's first four
+    # nights, so it has the seven deleted days plus its cold-start nulls.
+    assert body["series"]["recovery"]["summary"]["n_values"] == 9
+
+
+def test_trends_empty_window_is_not_an_error(client: TestClient):
+    body = client.get("/api/trends?days=7&end=2000-01-07").json()
+    series = body["series"]["recovery"]
+    assert series["has_data"] is False
+    assert series["summary"]["n_values"] == 0
+    assert all(v is None for v in series["values"])
+
+
+def test_trends_delta_not_comparable_when_sparse(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    import sqlite3
+    db = tmp_path / "thin.sqlite3"
+    build(db, days=30, camel=False, cold_start=False)
+    conn = sqlite3.connect(db)
+    days = [r[0] for r in conn.execute("SELECT day FROM daily_metrics ORDER BY day")]
+    conn.executemany("DELETE FROM daily_metrics WHERE day = ?", [(d,) for d in days[:-2]])
+    conn.commit()
+    conn.close()
+
+    series = make_client(db, monkeypatch).get("/api/trends?days=30").json()["series"]["recovery"]
+    assert series["delta"]["comparable"] is False
+
+
+def test_trends_rolling_window_is_configurable(client: TestClient):
+    body = client.get("/api/trends?days=30&rolling=14").json()
+    assert body["rolling_window"] == 14
+    assert body["series"]["recovery"]["rolling_window"] == 14
+
+
+def test_trends_validates_bounds(client: TestClient):
+    assert client.get("/api/trends?days=1").status_code == 422
+    assert client.get("/api/trends?days=9999").status_code == 422
+    assert client.get("/api/trends?rolling=1").status_code == 422
+
+
+def test_trends_unresolved_schema_returns_503(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    import sqlite3
+    db = tmp_path / "nope.sqlite3"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE notes (id INT)")
+    conn.commit()
+    conn.close()
+    assert make_client(db, monkeypatch).get("/api/trends").status_code == 503
+
+
+def test_trends_carries_the_disclaimer_and_direction_hints(client: TestClient):
+    body = client.get("/api/trends?days=7").json()
+    assert "never interpolated" in body["note"]
+    assert body["disclaimer"]
+    assert "resting_hr" in body["direction"]["lower_is_better"]
+    assert "strain" in body["direction"]["neutral"]

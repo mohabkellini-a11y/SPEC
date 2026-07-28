@@ -1,9 +1,11 @@
-/* Today view. Vanilla JS, no build step, no external requests.
+/* Today + Trends. Vanilla JS, no build step, no external requests.
  *
  * Rule followed throughout: never render a number we do not have. A missing
  * value says why it is missing — "no data", "calibrating", or "not stored by
  * NOOP" are all different states and the UI distinguishes them.
  */
+
+import { renderCoverage, renderLineChart } from '/static/chart.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -11,9 +13,19 @@ const STAGE_ORDER = ['deep', 'rem', 'light', 'wake'];
 const STAGE_LABEL = { deep: 'Deep', rem: 'REM', light: 'Light', wake: 'Awake' };
 const RING_CIRCUMFERENCE = 2 * Math.PI * 86;
 
+const CHART_COLOR = {
+  recovery: 'var(--green)',
+  avg_hrv: 'var(--accent-dim)',
+  resting_hr: 'var(--blue)',
+  total_sleep_min: '#7a5cff',
+  strain: 'var(--yellow)',
+};
+
 let META = null;
 let VIEW_DAY = null;      // null = today
 let TODAY_KEY = null;
+let TREND_DAYS = 30;
+let TRENDS_LOADED = false;
 
 // ---------- helpers ----------
 
@@ -42,6 +54,17 @@ function minutesToHM(min) {
   if (min === null || min === undefined) return null;
   const total = Math.round(Number(min));
   return `${Math.floor(total / 60)}h ${String(total % 60).padStart(2, '0')}m`;
+}
+
+/** Display form for a metric: sleep reads as hours, everything else as a number. */
+function display(metric, value, meta) {
+  if (value === null || value === undefined) return '--';
+  return metric === 'total_sleep_min' ? minutesToHM(value) : fmt(value, meta);
+}
+
+/** Unit suffix, omitted where `display` already carries it. */
+function displayUnit(metric, meta) {
+  return metric === 'total_sleep_min' ? '' : (meta.unit || '');
 }
 
 function shortDate(key) {
@@ -363,6 +386,159 @@ async function load(day) {
     $('ring-cap').textContent = 'unavailable';
   }
 }
+
+// ---------- trends ----------
+
+function deltaClass(metric, delta) {
+  if (delta === null || delta === undefined) return '';
+  if (META.neutral_direction.includes(metric)) return '';
+  const better = META.lower_is_better.includes(metric) ? delta < 0 : delta > 0;
+  if (Math.abs(delta) < 1e-9) return '';
+  return better ? 'up' : 'down';
+}
+
+function trendCard(metric, series) {
+  const meta = META.metrics[metric] || { label: metric };
+  const card = document.createElement('section');
+  card.className = 'card trend-card';
+
+  const head = document.createElement('div');
+  head.className = 'card-head';
+  const title = document.createElement('h2');
+  title.textContent = meta.label || metric;
+  const pill = document.createElement('span');
+  pill.className = `pill ${meta.kind === 'approximate' ? 'approx' : meta.kind === 'measured' ? 'measured' : 'derived'}`;
+  pill.textContent = meta.kind;
+  head.append(title, pill);
+  card.appendChild(head);
+
+  if (series.unavailable) {
+    const msg = document.createElement('p');
+    msg.className = 'card-note';
+    msg.textContent = `Not available — ${series.reason}.`;
+    card.appendChild(msg);
+    return card;
+  }
+  if (!series.has_data) {
+    const msg = document.createElement('p');
+    msg.className = 'card-note';
+    msg.textContent = 'No data in this window.';
+    card.appendChild(msg);
+    return card;
+  }
+
+  const s = series.summary;
+  const d = series.delta;
+
+  // headline: latest value + period delta
+  const headline = document.createElement('div');
+  headline.className = 'trend-headline';
+
+  const big = document.createElement('span');
+  big.className = 'trend-value';
+  big.textContent = display(metric, s.latest, meta);
+  const unit = document.createElement('span');
+  unit.className = 'tile-unit';
+  unit.textContent = displayUnit(metric, meta);
+  big.appendChild(unit);
+  headline.appendChild(big);
+
+  const chg = document.createElement('span');
+  if (d && d.comparable && d.delta !== null) {
+    chg.className = `trend-delta ${deltaClass(metric, d.delta)}`;
+    const arrow = d.delta > 0 ? '↑' : d.delta < 0 ? '↓' : '→';
+    const shown = fmt(Math.abs(d.delta), meta);
+    const suffix = meta.unit && meta.unit !== '/21' ? ` ${meta.unit}` : '';
+    chg.textContent = `${arrow} ${shown}${suffix}`;
+    chg.title = `Mean of the last ${d.n_recent} days with data vs the ${d.n_previous} before them`;
+  } else {
+    chg.className = 'trend-delta muted';
+    // Refusing to draw a delta is the point — see period_delta's `comparable`.
+    chg.textContent = 'not enough data to compare';
+  }
+  headline.appendChild(chg);
+  card.appendChild(headline);
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'chart');
+  card.appendChild(svg);
+  renderLineChart(svg, {
+    days: series.days,
+    values: series.values,
+    rolling: series.rolling,
+    color: CHART_COLOR[metric] || 'var(--accent)',
+    precision: meta.precision || 0,
+    scale: meta.scale || 1,
+  });
+
+  const foot = document.createElement('div');
+  foot.className = 'trend-foot';
+  const stats = document.createElement('span');
+  const mean = display(metric, s.mean, meta);
+  const lo = display(metric, s.min, meta);
+  const hi = display(metric, s.max, meta);
+  stats.textContent = `avg ${mean} · range ${lo}–${hi} · ${series.rolling_window}-day mean shown bold`;
+  foot.appendChild(stats);
+  card.appendChild(foot);
+
+  const cov = document.createElement('div');
+  cov.className = 'coverage';
+  renderCoverage(cov, s);
+  card.appendChild(cov);
+
+  card.addEventListener('click', () => openSheet(metric));
+  return card;
+}
+
+async function loadTrends() {
+  const host = $('trend-cards');
+  host.innerHTML = '<p class="card-note">loading…</p>';
+  try {
+    const data = await getJSON(`/api/trends?days=${TREND_DAYS}`);
+    host.innerHTML = '';
+    for (const metric of META.trend_metrics) {
+      const series = data.series[metric];
+      if (series) host.appendChild(trendCard(metric, series));
+    }
+    $('trend-note').textContent = data.note;
+    TRENDS_LOADED = true;
+  } catch (err) {
+    host.innerHTML = '';
+    const p = document.createElement('p');
+    p.className = 'card-note';
+    p.textContent = `Could not load trends: ${err.message}`;
+    host.appendChild(p);
+  }
+}
+
+// ---------- view switching ----------
+
+function showView(name) {
+  $('view-today').classList.toggle('hidden', name !== 'today');
+  $('view-trends').classList.toggle('hidden', name !== 'trends');
+  document.querySelectorAll('.tab').forEach((t) => {
+    const on = t.dataset.view === name;
+    t.classList.toggle('is-on', on);
+    t.setAttribute('aria-selected', String(on));
+  });
+  document.querySelector('.topbar h1').textContent = name === 'today' ? 'Today' : 'Trends';
+  $('day-prev').classList.toggle('hidden', name !== 'today');
+  $('day-next').classList.toggle('hidden', name !== 'today');
+  $('day-label').classList.toggle('hidden', name !== 'today');
+  if (name === 'trends' && !TRENDS_LOADED) loadTrends();
+}
+
+document.querySelectorAll('.tab').forEach((tab) => {
+  tab.addEventListener('click', () => showView(tab.dataset.view));
+});
+
+document.querySelectorAll('.range-chip').forEach((chip) => {
+  chip.addEventListener('click', () => {
+    TREND_DAYS = Number(chip.dataset.days);
+    document.querySelectorAll('.range-chip').forEach((c) => c.classList.toggle('is-on', c === chip));
+    loadTrends();
+  });
+});
 
 $('day-prev').addEventListener('click', () => load(addDays(VIEW_DAY, -1)));
 $('day-next').addEventListener('click', () => {

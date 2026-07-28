@@ -1,9 +1,9 @@
 """FastAPI backend. Local-first: binds to the LAN, talks to nothing external.
 
-Phase 1 scope: read-only Today view over NOOP's database.
-Trends (Phase 2), journal/workouts (Phase 3), BLE alarms (Phase 4) and PWA
-packaging/export (Phase 5) are not implemented yet; endpoints that would serve
-them are absent rather than stubbed with fake data.
+Phase 1-2 scope: read-only Today view and trend charts over NOOP's database.
+Journal/workouts (Phase 3), BLE alarms (Phase 4) and PWA packaging/export
+(Phase 5) are not implemented yet; endpoints that would serve them are absent
+rather than stubbed with fake data.
 """
 
 from __future__ import annotations
@@ -15,8 +15,16 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from .analytics import align, build_series, dense_days
 from .config import settings
-from .metrics_meta import DISCLAIMER, METRIC_META, TODAY_TILES
+from .metrics_meta import (
+    DISCLAIMER,
+    LOWER_IS_BETTER,
+    METRIC_META,
+    NEUTRAL_DIRECTION,
+    TODAY_TILES,
+    TREND_METRICS,
+)
 from .noop_adapter import (
     NoopAdapter,
     NoopDBError,
@@ -30,7 +38,7 @@ app = FastAPI(
     title="WHOOP local dashboard",
     description="Local-first personal dashboard over NOOP's on-device data. "
                 "No cloud, no accounts, no WHOOP servers.",
-    version="0.1.0-phase1",
+    version="0.2.0-phase2",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
 )
@@ -60,7 +68,7 @@ def health() -> dict[str, Any]:
     """Cheap liveness + whether the NOOP database is reachable at all."""
     out: dict[str, Any] = {
         "ok": True,
-        "phase": 1,
+        "phase": 2,
         "noop_db_path": str(settings.noop_db_path) if settings.noop_db_path else None,
         "noop_db_configured": settings.noop_db_path is not None,
         "noop_db_present": settings.noop_db_exists,
@@ -91,7 +99,12 @@ def diagnostics() -> dict[str, Any]:
 @app.get("/api/metrics/meta")
 def metrics_meta() -> dict[str, Any]:
     """Label, unit, method and approximation status for every metric."""
-    return {"metrics": METRIC_META, "today_tiles": list(TODAY_TILES), "disclaimer": DISCLAIMER}
+    return {"metrics": METRIC_META,
+            "today_tiles": list(TODAY_TILES),
+            "trend_metrics": list(TREND_METRICS),
+            "lower_is_better": sorted(LOWER_IS_BETTER),
+            "neutral_direction": sorted(NEUTRAL_DIRECTION),
+            "disclaimer": DISCLAIMER}
 
 
 @app.get("/api/today")
@@ -197,6 +210,89 @@ def heart_rate(
         "available": True,
         "day": key,
         "samples": adapter.heart_rate_range(start_ts, end_ts - 1, max_points),
+    }
+
+
+@app.get("/api/trends")
+def trends(
+    days: int = Query(30, ge=2, le=730, description="Window length in days, ending today."),
+    metrics: str | None = Query(None, description="Comma-separated metric keys."),
+    end: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$",
+                            description="Last day of the window. Defaults to today."),
+    rolling: int = Query(7, ge=2, le=90, description="Rolling-mean window in days."),
+) -> dict[str, Any]:
+    """Daily series for the trend charts, densified so gaps stay visible.
+
+    One query per window: the range is read once and every metric is projected
+    out of the same rows.
+    """
+    smap = adapter.schema()
+    if not smap.resolved:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "schema_unresolved",
+                    "message": "Could not identify NOOP's daily-metrics table.",
+                    "tables_found": sorted(smap.all_tables),
+                    "next_step": "Run `python -m app.probe`."},
+        )
+
+    requested = [m.strip() for m in metrics.split(",")] if metrics else list(TREND_METRICS)
+    unknown = [m for m in requested if m not in METRIC_META]
+    if unknown:
+        raise HTTPException(status_code=400,
+                            detail=f"Unknown metric(s): {', '.join(unknown)}")
+    # Only daily-record fields can be charted; live readings have no history.
+    unchartable = [m for m in requested if m not in TREND_METRICS and m in {"heart_rate", "battery"}]
+    if unchartable:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{', '.join(unchartable)} is a live reading with no daily history.",
+        )
+
+    end_day = end or utc_day_key(datetime.now(tz=timezone.utc).astimezone(settings.tz))
+    start_day = (datetime.fromisoformat(end_day).date() - timedelta(days=days - 1)).isoformat()
+    day_keys = dense_days(start_day, end_day)
+
+    rows = adapter.daily_range(start_day, end_day)
+    # A field absent from this NOOP database is reported as such, not charted flat.
+    resolved_fields = set(smap.daily.columns)
+
+    series: dict[str, Any] = {}
+    for metric in requested:
+        if metric not in resolved_fields:
+            series[metric] = {
+                "metric": metric, "has_data": False, "unavailable": True,
+                "reason": "not a column in this NOOP database",
+                "days": day_keys, "values": [None] * len(day_keys), "rolling": [],
+                "summary": None, "delta": None, "slope_per_day": None,
+            }
+            continue
+        built = build_series(
+            metric, day_keys, align(rows, day_keys, metric),
+            rolling_window=rolling,
+            # Half the window against the other half, so a 30-day view compares
+            # the last 15 days with the 15 before them.
+            delta_window=max(1, days // 2),
+        )
+        payload = built.as_dict()
+        payload["unavailable"] = False
+        series[metric] = payload
+
+    return {
+        "start_day": start_day,
+        "end_day": end_day,
+        "days": days,
+        "rolling_window": rolling,
+        "rows_found": len(rows),
+        "series": series,
+        "direction": {
+            "lower_is_better": sorted(LOWER_IS_BETTER),
+            "neutral": sorted(NEUTRAL_DIRECTION),
+        },
+        "note": "Descriptive statistics over NOOP's already-approximate daily values. "
+                "Gaps are shown as gaps and are never interpolated. A trend line "
+                "describes the past; it is not a forecast or a cause.",
+        "disclaimer": DISCLAIMER,
     }
 
 

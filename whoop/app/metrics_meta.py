@@ -99,6 +99,27 @@ TODAY_TILES: tuple[str, ...] = (
 )
 """Tile order on the Today screen, per the Phase 1 spec."""
 
+TREND_METRICS: tuple[str, ...] = (
+    "recovery", "avg_hrv", "resting_hr", "total_sleep_min", "strain",
+)
+"""Chart order on the Trends screen, per the Phase 2 spec.
+
+Only fields that live on NOOP's daily record can be charted — `heart_rate` and
+`battery` are live readings with no per-day history, so they are deliberately
+absent rather than plotted as a flat line.
+"""
+
+LOWER_IS_BETTER: frozenset[str] = frozenset({"resting_hr"})
+"""Metrics where a downward trend is the favourable direction.
+
+Used only to colour a delta, never to make a recommendation. Sleep and strain
+are intentionally not in here: more sleep is not always better and strain has no
+'good' direction at all.
+"""
+
+NEUTRAL_DIRECTION: frozenset[str] = frozenset({"strain", "skin_temp_dev_c"})
+"""Metrics with no favourable direction — deltas render without a colour."""
+
 DISCLAIMER = (
     "Not a medical device. Every value here is an approximation computed on your "
     "own machine from published methods — not clinically validated, not medical "

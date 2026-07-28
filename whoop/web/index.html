@@ -26,6 +26,8 @@
   <!-- connection / data-state banner -->
   <div id="banner" class="banner hidden" role="status"></div>
 
+<div id="view-today">
+
   <!-- recovery ring -->
   <section class="ring-card" id="ring-card">
     <svg viewBox="0 0 200 200" class="ring" aria-hidden="true">
@@ -73,11 +75,27 @@
     <summary>Data sources &amp; diagnostics</summary>
     <div id="diag-body" class="diag-body">loading…</div>
   </details>
+</div><!-- /view-today -->
+
+<div id="view-trends" class="hidden">
+  <div class="range-row" role="group" aria-label="Trend window">
+    <button class="range-chip" data-days="7">7d</button>
+    <button class="range-chip is-on" data-days="30">30d</button>
+    <button class="range-chip" data-days="90">90d</button>
+  </div>
+  <div id="trend-cards"></div>
+  <p class="card-note" id="trend-note"></p>
+</div><!-- /view-trends -->
 
   <p class="disclaimer" id="disclaimer"></p>
-  <p class="build">Phase 1 — read-only dashboard. Trends, journal, workouts and
-     strap alarms are not built yet.</p>
+  <p class="build">Phase 2 — read-only dashboard and trends. Journal, workouts
+     and strap alarms are not built yet.</p>
 </main>
+
+<nav class="tabbar" role="tablist">
+  <button class="tab is-on" data-view="today" role="tab" aria-selected="true">Today</button>
+  <button class="tab" data-view="trends" role="tab" aria-selected="false">Trends</button>
+</nav>
 
 <!-- metric detail sheet -->
 <div id="sheet" class="sheet hidden" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
@@ -91,6 +109,6 @@
   </div>
 </div>
 
-<script src="/static/app.js"></script>
+<script type="module" src="/static/app.js"></script>
 </body>
 </html>
