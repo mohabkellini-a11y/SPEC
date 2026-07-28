@@ -1,9 +1,10 @@
 """FastAPI backend. Local-first: binds to the LAN, talks to nothing external.
 
-Phase 1-2 scope: read-only Today view and trend charts over NOOP's database.
-Journal/workouts (Phase 3), BLE alarms (Phase 4) and PWA packaging/export
-(Phase 5) are not implemented yet; endpoints that would serve them are absent
-rather than stubbed with fake data.
+Phase 1-3 scope: read-only Today view and trends over NOOP's database, plus a
+habit journal and workout log in this app's OWN database.
+BLE alarms (Phase 4) and PWA packaging/export/correlations (Phase 5) are not
+implemented yet; endpoints that would serve them are absent rather than stubbed
+with fake data.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from .metrics_meta import (
     TODAY_TILES,
     TREND_METRICS,
 )
+from .routes_journal import get_store, router as journal_router
 from .noop_adapter import (
     NoopAdapter,
     NoopDBError,
@@ -38,12 +40,14 @@ app = FastAPI(
     title="WHOOP local dashboard",
     description="Local-first personal dashboard over NOOP's on-device data. "
                 "No cloud, no accounts, no WHOOP servers.",
-    version="0.2.0-phase2",
+    version="0.3.0-phase3",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
 )
 
 adapter = NoopAdapter(settings.noop_db_path, settings.schema_map_path)
+
+app.include_router(journal_router)
 
 
 def _clean(row: dict[str, Any] | None) -> dict[str, Any]:
@@ -68,7 +72,7 @@ def health() -> dict[str, Any]:
     """Cheap liveness + whether the NOOP database is reachable at all."""
     out: dict[str, Any] = {
         "ok": True,
-        "phase": 2,
+        "phase": 3,
         "noop_db_path": str(settings.noop_db_path) if settings.noop_db_path else None,
         "noop_db_configured": settings.noop_db_path is not None,
         "noop_db_present": settings.noop_db_exists,
@@ -80,6 +84,14 @@ def health() -> dict[str, Any]:
     except NoopDBError as exc:
         out["schema_resolved"] = False
         out["error"] = str(exc)
+
+    # The app's own database is independent of NOOP's: the journal keeps working
+    # when NOOP's file is missing, and vice versa. get_store() migrates on first
+    # touch, so health does not depend on a startup hook having fired.
+    try:
+        out["app_db"] = {"ok": True, **get_store().stats()}
+    except Exception as exc:                      # noqa: BLE001 - reported, not raised
+        out["app_db"] = {"ok": False, "error": str(exc)}
     return out
 
 

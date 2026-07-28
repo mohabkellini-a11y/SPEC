@@ -87,14 +87,103 @@
   <p class="card-note" id="trend-note"></p>
 </div><!-- /view-trends -->
 
+<div id="view-journal" class="hidden">
+  <section class="card">
+    <div class="card-head">
+      <h2>Habits</h2>
+      <span class="journal-status" id="journal-status"></span>
+    </div>
+    <p class="card-note" id="journal-count"></p>
+    <div id="journal-habits"></div>
+    <p class="card-note">Tap once for yes, twice for an explicit no, three times to clear.
+       Saves as you go — there is no save button.</p>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Notes</h2></div>
+    <textarea id="journal-note" class="note-input" rows="4"
+              placeholder="Anything worth remembering about this day…"></textarea>
+  </section>
+
+  <details class="card">
+    <summary>Add a habit</summary>
+    <form id="habit-add-form" class="stack">
+      <input id="habit-label" class="inp" type="text" placeholder="Name (e.g. Magnesium)" maxlength="120">
+      <select id="habit-type" class="inp">
+        <option value="bool">Yes / no</option>
+        <option value="scale">1-5 scale</option>
+        <option value="number">Number</option>
+      </select>
+      <input id="habit-unit" class="inp hidden" type="text" placeholder="Unit (e.g. mg, hours)" maxlength="24">
+      <button class="big-btn" type="submit">Add habit</button>
+    </form>
+  </details>
+</div><!-- /view-journal -->
+
+<div id="view-workouts" class="hidden">
+  <section class="card">
+    <div class="card-head"><h2>Suggested from your heart rate</h2></div>
+    <div id="suggestion-list"></div>
+    <p class="card-note" id="suggestion-method"></p>
+  </section>
+
+  <details class="card">
+    <summary>Log a workout</summary>
+    <form id="workout-form" class="stack">
+      <input id="w-day" class="inp" type="date" required>
+      <input id="w-type" class="inp" type="text" placeholder="Type (run, lift, ride…)" required maxlength="64">
+      <input id="w-duration" class="inp" type="number" inputmode="decimal" placeholder="Duration (minutes)" min="1" required>
+      <select id="w-rpe" class="inp">
+        <option value="">Perceived exertion (1-10)</option>
+        <option value="1">1 — very easy</option><option value="2">2</option>
+        <option value="3">3 — easy</option><option value="4">4</option>
+        <option value="5">5 — moderate</option><option value="6">6</option>
+        <option value="7">7 — hard</option><option value="8">8</option>
+        <option value="9">9 — very hard</option><option value="10">10 — max</option>
+      </select>
+      <textarea id="w-notes" class="note-input" rows="2" placeholder="Notes (optional)"></textarea>
+      <button class="big-btn" type="submit">Log workout</button>
+      <p class="form-msg" id="workout-form-msg"></p>
+    </form>
+  </details>
+
+  <div class="range-row" role="group" aria-label="History window">
+    <button class="wrange-chip" data-days="30">30d</button>
+    <button class="wrange-chip is-on" data-days="90">90d</button>
+    <button class="wrange-chip" data-days="365">1y</button>
+  </div>
+
+  <section class="card">
+    <div class="card-head"><h2>Weekly volume</h2></div>
+    <p class="card-note" id="volume-total"></p>
+    <svg id="volume-chart" class="chart"></svg>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Strain vs recovery</h2>
+      <span class="pill approx">approximate</span>
+    </div>
+    <svg id="scatter-chart" class="chart scatter"></svg>
+    <p class="card-note" id="scatter-note"></p>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>History</h2></div>
+    <div id="workout-list"></div>
+  </section>
+</div><!-- /view-workouts -->
+
   <p class="disclaimer" id="disclaimer"></p>
-  <p class="build">Phase 2 — read-only dashboard and trends. Journal, workouts
-     and strap alarms are not built yet.</p>
+  <p class="build">Phase 3 — dashboard, trends, journal and workout log.
+     Strap alarms and export are not built yet.</p>
 </main>
 
 <nav class="tabbar" role="tablist">
   <button class="tab is-on" data-view="today" role="tab" aria-selected="true">Today</button>
   <button class="tab" data-view="trends" role="tab" aria-selected="false">Trends</button>
+  <button class="tab" data-view="journal" role="tab" aria-selected="false">Journal</button>
+  <button class="tab" data-view="workouts" role="tab" aria-selected="false">Workouts</button>
 </nav>
 
 <!-- metric detail sheet -->

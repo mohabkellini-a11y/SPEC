@@ -6,6 +6,8 @@
  */
 
 import { renderCoverage, renderLineChart } from '/static/chart.js';
+import { initJournal, loadJournal } from '/static/journal.js';
+import { initWorkouts, loadWorkouts } from '/static/workouts.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -26,6 +28,8 @@ let VIEW_DAY = null;      // null = today
 let TODAY_KEY = null;
 let TREND_DAYS = 30;
 let TRENDS_LOADED = false;
+let VIEW = 'today';
+let JOURNAL_DAY = null;
 
 // ---------- helpers ----------
 
@@ -345,9 +349,7 @@ async function load(day) {
     TODAY_KEY = TODAY_KEY || data.requested_day;
     VIEW_DAY = data.requested_day;
 
-    $('day-label').textContent = shortDate(data.requested_day)
-      + (data.requested_day === TODAY_KEY ? ' · today' : '');
-    $('day-next').disabled = data.requested_day >= TODAY_KEY;
+    setDayLabel(data.requested_day);
 
     // Data-state banner — the honest empty states.
     if (!data.has_data) {
@@ -513,19 +515,57 @@ async function loadTrends() {
 
 // ---------- view switching ----------
 
+const VIEW_TITLE = { today: 'Today', trends: 'Trends', journal: 'Journal', workouts: 'Workouts' };
+// Today and Journal are both per-day views, so the header arrows drive whichever
+// is showing. Trends and Workouts are windowed, so the arrows hide.
+const DAY_VIEWS = new Set(['today', 'journal']);
+
 function showView(name) {
-  $('view-today').classList.toggle('hidden', name !== 'today');
-  $('view-trends').classList.toggle('hidden', name !== 'trends');
+  VIEW = name;
+  for (const view of Object.keys(VIEW_TITLE)) {
+    $(`view-${view}`).classList.toggle('hidden', view !== name);
+  }
   document.querySelectorAll('.tab').forEach((t) => {
     const on = t.dataset.view === name;
     t.classList.toggle('is-on', on);
     t.setAttribute('aria-selected', String(on));
   });
-  document.querySelector('.topbar h1').textContent = name === 'today' ? 'Today' : 'Trends';
-  $('day-prev').classList.toggle('hidden', name !== 'today');
-  $('day-next').classList.toggle('hidden', name !== 'today');
-  $('day-label').classList.toggle('hidden', name !== 'today');
+  document.querySelector('.topbar h1').textContent = VIEW_TITLE[name];
+
+  const dayView = DAY_VIEWS.has(name);
+  $('day-prev').classList.toggle('hidden', !dayView);
+  $('day-next').classList.toggle('hidden', !dayView);
+  $('day-label').classList.toggle('hidden', !dayView);
+  $('banner').classList.toggle('hidden', name !== 'today' || !$('banner').textContent);
+
   if (name === 'trends' && !TRENDS_LOADED) loadTrends();
+  if (name === 'journal') {
+    JOURNAL_DAY = JOURNAL_DAY || TODAY_KEY;
+    setDayLabel(JOURNAL_DAY);
+    loadJournal(JOURNAL_DAY);
+  }
+  if (name === 'workouts') loadWorkouts();
+  if (name === 'today') setDayLabel(VIEW_DAY);
+}
+
+function setDayLabel(day) {
+  if (!day) return;
+  $('day-label').textContent = shortDate(day) + (day === TODAY_KEY ? ' · today' : '');
+  $('day-next').disabled = day >= TODAY_KEY;
+}
+
+function stepDay(delta) {
+  if (VIEW === 'journal') {
+    const next = addDays(JOURNAL_DAY, delta);
+    if (delta > 0 && next > TODAY_KEY) return;
+    JOURNAL_DAY = next;
+    setDayLabel(JOURNAL_DAY);
+    loadJournal(JOURNAL_DAY);
+    return;
+  }
+  const next = addDays(VIEW_DAY, delta);
+  if (delta > 0 && next > TODAY_KEY) return;
+  load(next);
 }
 
 document.querySelectorAll('.tab').forEach((tab) => {
@@ -540,12 +580,15 @@ document.querySelectorAll('.range-chip').forEach((chip) => {
   });
 });
 
-$('day-prev').addEventListener('click', () => load(addDays(VIEW_DAY, -1)));
-$('day-next').addEventListener('click', () => {
-  if (VIEW_DAY < TODAY_KEY) load(addDays(VIEW_DAY, 1));
-});
+$('day-prev').addEventListener('click', () => stepDay(-1));
+$('day-next').addEventListener('click', () => stepDay(1));
 $('sheet-close').addEventListener('click', closeSheet);
 $('sheet').addEventListener('click', (e) => { if (e.target.id === 'sheet') closeSheet(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
 
-load(null);
+// Boot: Today first, then wire the per-day views once we know what "today" is.
+load(null).then(() => {
+  JOURNAL_DAY = TODAY_KEY;
+  initJournal(() => JOURNAL_DAY);
+  initWorkouts(TODAY_KEY);
+});

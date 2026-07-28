@@ -11,14 +11,14 @@ and not WHOOP's proprietary scores.
 
 ---
 
-## Status: Phase 2 of 5
+## Status: Phase 3 of 5
 
 | Phase | Scope | State |
 |-------|-------|-------|
 | 0 | Schema + BLE investigation | **done** — `SCHEMA_NOTES.md`, `BLE_NOTES.md` |
 | 1 | Read-only dashboard, today's metrics | **done** |
 | 2 | Trends + 7/30/90-day charts | **done** |
-| 3 | Habit journal + workout log | not started |
+| 3 | Habit journal + workout log | **done** |
 | 4 | BLE alarm + countdown timer | not started |
 | 5 | PWA packaging, correlations, export | not started |
 
@@ -188,6 +188,32 @@ cannot drift forward across a gap; and every chart shows a coverage bar reading
 A period-over-period delta that is too sparse to mean anything renders as
 "not enough data to compare" instead of a number.
 
+### Your data lives in a different file from NOOP's
+NOOP's database is opened read-only and never written to. Everything you type —
+habits, journal entries, notes, workouts — goes in `APP_DB_PATH`, a separate
+SQLite file this app owns, migrated in place via `PRAGMA user_version`. A NOOP
+update, reinstall or schema change cannot touch it. The two are joined only by
+the day key, and the journal keeps working when NOOP's file is missing entirely.
+
+### Not logged is not zero
+A habit has three states, not two: unset, yes, and an explicit no. "I did not
+drink" and "I did not log" are different facts, and the correlations in Phase 5
+must not read silence as a zero. In the UI: one tap for yes, two for an explicit
+no, three to clear.
+
+### Workout suggestions are suggestions
+The detector reuses NOOP's own constants (`minExerciseMin`, `hrMarginBPM`,
+`mergeGapS`, `restingPercentile`) but **not** its motion channel, which the
+adapter cannot resolve. Heart rate alone, `resting + 15 bpm` fires on ordinary
+waking life — measured against a real day it flagged 17 "workouts" in 24 hours.
+Two extra gates stand in for the missing motion check: a bout must sit above the
+day's *median* HR, and must average 30 bpm above resting.
+
+The honest cost: **easy sessions will not be suggested.** A flat walk or gentle
+yoga is indistinguishable from sitting at a desk when all you have is heart rate.
+Log those by hand. Nothing is ever written to your log without you confirming it,
+and dismissals are remembered by a key that survives re-detection.
+
 ### Every metric is labelled
 `app/metrics_meta.py` carries the label, unit, computation method and
 approximation status for every displayed value. The UI renders tiles *from* that
@@ -206,6 +232,14 @@ method and its caveats.
 | `GET /api/today?day=YYYY-MM-DD&fallback=` | Today's (or a given day's) metrics |
 | `GET /api/heart-rate?day=&max_points=` | Decimated HR samples for a day |
 | `GET /api/trends?days=&metrics=&end=&rolling=` | Daily series, rolling mean, period delta |
+| `GET/POST /api/habits`, `PATCH/DELETE /api/habits/{id}` | Define your own habits |
+| `GET/PUT /api/journal/{day}` | One day's habits and note |
+| `GET /api/journal?days=&end=` | Journal over a window |
+| `GET/POST /api/workouts`, `PATCH/DELETE /api/workouts/{id}` | Workout log |
+| `GET /api/workouts/suggestions?days=` | Elevated-HR blocks awaiting confirmation |
+| `POST /api/workouts/suggestions/{key}/confirm\|dismiss` | Accept or reject one |
+| `GET /api/workouts/summary?days=` | Weekly volume + strain-vs-recovery scatter |
+| `GET /api/store/stats` | What lives in this app's own database |
 | `GET /api/strap/state` | BLE connection state (Phase 1: always idle) |
 | `GET /api/docs` | OpenAPI browser |
 
@@ -214,7 +248,7 @@ method and its caveats.
 ## Tests
 
 ```bash
-python -m pytest tests/ -q      # 265 tests
+python -m pytest tests/ -q      # 357 tests
 python tools/verify_ble_frame.py
 ```
 
@@ -224,7 +258,13 @@ python tools/verify_ble_frame.py
   read-only enforcement, overrides, stage decoding, cold-start nulls.
 - `tests/test_analytics.py` — rolling means, period deltas, slopes and coverage
   on hand-checkable inputs. Mostly about gaps not silently becoming numbers.
-- `tests/test_api.py` — the honest-empty-state contract and every failure mode.
+- `tests/test_store.py` — migrations, value validation, and the unset-vs-zero
+  distinction; also asserts writing the journal never touches NOOP's file.
+- `tests/test_workout_detect.py` — synthetic HR days with known answers, including
+  the false-positive case the extra gates exist to reject and the low-intensity
+  case they knowingly miss.
+- `tests/test_api.py`, `tests/test_api_journal.py` — the honest-empty-state
+  contract and every failure mode.
 
 To see the gap handling for yourself, build a fixture and delete some days:
 
@@ -242,13 +282,18 @@ The charts break the line across the hole and the coverage bar turns amber.
 ```
 app/
   config.py         .env loading
-  noop_adapter.py   THE schema boundary — read-only, runtime-resolved
+  noop_adapter.py   THE schema boundary — NOOP, read-only, runtime-resolved
+  store.py          THIS app's own database — journal, workouts, habits
   analytics.py      descriptive stats over daily series (pure functions)
+  workout_detect.py elevated-HR bout suggestions (pure functions)
   metrics_meta.py   label/unit/method/approximation for every metric
+  routes_journal.py journal / habit / workout endpoints
   probe.py          schema discovery CLI
   main.py           FastAPI
 web/                vendored SPA (no build step, no external requests)
-  chart.js          SVG line charts; nulls break the path, never bridged
+  chart.js          SVG line, bar and scatter; nulls break the path, never bridged
+  journal.js        fast daily entry
+  workouts.js       suggestions, manual entry, history
 tools/
   verify_ble_frame.py   reproducible BLE frame verification
   make_fixture.py       synthetic NOOP-shaped database
