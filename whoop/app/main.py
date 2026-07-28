@@ -9,6 +9,7 @@ with fake data.
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -26,6 +27,7 @@ from .metrics_meta import (
     TODAY_TILES,
     TREND_METRICS,
 )
+from .routes_alarms import get_scheduler, router as alarms_router
 from .routes_journal import get_store, router as journal_router
 from .noop_adapter import (
     NoopAdapter,
@@ -36,18 +38,38 @@ from .noop_adapter import (
     utc_day_key,
 )
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Start the alarm scheduler with the server, stop it with the server.
+
+    A pending alarm survives a restart because it lives in SQLite — and, once
+    armed, on the strap itself. Startup reconciles: anything whose time passed
+    while we were down is marked fired or failed rather than silently retried.
+    """
+    scheduler = get_scheduler()
+    try:
+        await scheduler.run_once()
+        await scheduler.start()
+    except Exception as exc:  # noqa: BLE001 - reported via /api/health, not fatal
+        _app.state.scheduler_error = str(exc)
+    yield
+    await scheduler.stop()
+
+
 app = FastAPI(
     title="WHOOP local dashboard",
     description="Local-first personal dashboard over NOOP's on-device data. "
                 "No cloud, no accounts, no WHOOP servers.",
-    version="0.3.0-phase3",
+    version="0.4.0-phase4",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
+    lifespan=lifespan,
 )
 
 adapter = NoopAdapter(settings.noop_db_path, settings.schema_map_path)
 
 app.include_router(journal_router)
+app.include_router(alarms_router)
 
 
 def _clean(row: dict[str, Any] | None) -> dict[str, Any]:
@@ -72,7 +94,7 @@ def health() -> dict[str, Any]:
     """Cheap liveness + whether the NOOP database is reachable at all."""
     out: dict[str, Any] = {
         "ok": True,
-        "phase": 3,
+        "phase": 4,
         "noop_db_path": str(settings.noop_db_path) if settings.noop_db_path else None,
         "noop_db_configured": settings.noop_db_path is not None,
         "noop_db_present": settings.noop_db_exists,
@@ -305,24 +327,6 @@ def trends(
                 "Gaps are shown as gaps and are never interpolated. A trend line "
                 "describes the past; it is not a forecast or a cause.",
         "disclaimer": DISCLAIMER,
-    }
-
-
-@app.get("/api/strap/state")
-def strap_state() -> dict[str, Any]:
-    """Strap BLE connection state.
-
-    Phase 1 holds no BLE connection at all, by design — the strap can only be
-    bonded to one host at a time (BLE_NOTES.md 4.1), so the dashboard stays off
-    the radio entirely until Phase 4. Reported honestly rather than faked.
-    """
-    return {
-        "state": "idle",
-        "implemented": False,
-        "message": "BLE lands in Phase 4. Nothing is connected to the strap; "
-                   "NOOP keeps the bond.",
-        "constraint": "One host may hold the strap's bond at a time. This dashboard "
-                      "will connect on demand, send, and disconnect.",
     }
 
 

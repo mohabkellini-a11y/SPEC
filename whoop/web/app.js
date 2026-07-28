@@ -8,6 +8,7 @@
 import { renderCoverage, renderLineChart } from '/static/chart.js';
 import { initJournal, loadJournal } from '/static/journal.js';
 import { initWorkouts, loadWorkouts } from '/static/workouts.js';
+import { initAlarms, loadAlarms } from '/static/alarms.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -515,7 +516,8 @@ async function loadTrends() {
 
 // ---------- view switching ----------
 
-const VIEW_TITLE = { today: 'Today', trends: 'Trends', journal: 'Journal', workouts: 'Workouts' };
+const VIEW_TITLE = { today: 'Today', trends: 'Trends', journal: 'Journal',
+                     workouts: 'Workouts', alarms: 'Alarms' };
 // Today and Journal are both per-day views, so the header arrows drive whichever
 // is showing. Trends and Workouts are windowed, so the arrows hide.
 const DAY_VIEWS = new Set(['today', 'journal']);
@@ -545,6 +547,7 @@ function showView(name) {
     loadJournal(JOURNAL_DAY);
   }
   if (name === 'workouts') loadWorkouts();
+  if (name === 'alarms') loadAlarms();
   if (name === 'today') setDayLabel(VIEW_DAY);
 }
 
@@ -591,4 +594,5 @@ load(null).then(() => {
   JOURNAL_DAY = TODAY_KEY;
   initJournal(() => JOURNAL_DAY);
   initWorkouts(TODAY_KEY);
+  initAlarms();
 });

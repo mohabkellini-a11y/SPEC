@@ -11,7 +11,7 @@ and not WHOOP's proprietary scores.
 
 ---
 
-## Status: Phase 3 of 5
+## Status: Phase 4 of 5
 
 | Phase | Scope | State |
 |-------|-------|-------|
@@ -19,7 +19,7 @@ and not WHOOP's proprietary scores.
 | 1 | Read-only dashboard, today's metrics | **done** |
 | 2 | Trends + 7/30/90-day charts | **done** |
 | 3 | Habit journal + workout log | **done** |
-| 4 | BLE alarm + countdown timer | **bench test ready** — needs your strap |
+| 4 | BLE alarm + countdown timer | **built** — unverified on hardware, see below |
 | 5 | PWA packaging, correlations, export | not started |
 
 Endpoints for unbuilt phases are absent rather than stubbed with fake data. The
@@ -42,15 +42,19 @@ in the notes files; the short version:
    anywhere to read. So this project **discovers the schema at runtime** instead
    of hardcoding it — see "First run" below. Expect to run the probe once.
 
-2. **The alarm feature (Phase 4) is at genuine risk, and not because of the
-   packet format.** The packet format is solved and verified. The risk is the
-   transport: the community researcher whose captures this is built on reports
-   that writing to the strap's command characteristic **from a computer via
-   `bleak` did not work**, and via `gatttool` "works randomly". The strap also
-   holds an encrypted BLE bond with exactly one host at a time, and haptics
-   require that bond — so NOOP and this dashboard genuinely cannot both have it.
-   See `BLE_NOTES.md` §4. Phase 4 will therefore start with a bench test against
-   your actual strap before any scheduler is written.
+2. **Phase 4 is built but not proven on hardware.** The packet format is solved
+   and verified (39/39 captured frames; every builder reproduces one byte for
+   byte). The transport is not: the community researcher whose captures this is
+   built on reports that writing to the strap's command characteristic **from a
+   computer via `bleak` did not work**, and via `gatttool` "works randomly". The
+   strap also holds an encrypted BLE bond with exactly one host at a time, and
+   haptics require that bond — so NOOP and this dashboard cannot both have it.
+   See `BLE_NOTES.md` §4.
+
+   **Run `docs/PHASE4_BENCH.md` before trusting an alarm to wake you.** Until it
+   passes on your strap, treat the alarm feature as untested. The scheduler,
+   persistence and UI are all done and tested against fake transports; if `bleak`
+   turns out not to work, only `app/ble/transport.py` changes.
 
 **Pinned NOOP version:** commit `d97fb89216baf6e51e654787cea1d64decd22afe`
 (tag `noop`, 2026-06-11). App release line at the time of investigation: v1.8.8.
@@ -214,6 +218,21 @@ yoga is indistinguishable from sitting at a desk when all you have is heart rate
 Log those by hand. Nothing is ever written to your log without you confirming it,
 and dismissals are remembered by a key that survives re-detection.
 
+### An alarm that is not set never looks like one that is
+The strap stores an **absolute** time, so an armed alarm fires on the strap's own
+clock — this machine can be asleep or off. But the strap holds **one alarm at a
+time**, so with several scheduled only the earliest is really on it; the rest are
+queued here and armed in turn, which needs the dashboard running. The UI says
+which is which per alarm, because the difference decides whether you wake up.
+
+A failed arm is red, quotes the reason, and offers Retry. An alarm merely queued
+behind an earlier one is *not* treated as a failure — crying wolf there would
+teach you to ignore the warning that matters.
+
+Cancelling an alarm already on the strap says plainly that the strap may still
+buzz: there is no verified un-set command (`BLE_NOTES.md` §3.3), so claiming
+otherwise would be a lie you would only discover at 6am.
+
 ### Every metric is labelled
 `app/metrics_meta.py` carries the label, unit, computation method and
 approximation status for every displayed value. The UI renders tiles *from* that
@@ -240,6 +259,11 @@ method and its caveats.
 | `POST /api/workouts/suggestions/{key}/confirm\|dismiss` | Accept or reject one |
 | `GET /api/workouts/summary?days=` | Weekly volume + strain-vs-recovery scatter |
 | `GET /api/store/stats` | What lives in this app's own database |
+| `GET/POST /api/alarms`, `PATCH/DELETE /api/alarms/{id}` | Alarms and timers |
+| `POST /api/alarms/{id}/retry` | Try again after a failed arm |
+| `GET /api/alarms/status` | Scheduler + strap status |
+| `GET /api/strap/state` | Live BLE connection state |
+| `POST /api/strap/test?seconds=` | Throwaway alarm to confirm it buzzes |
 | `GET /api/strap/state` | BLE connection state (Phase 1: always idle) |
 | `GET /api/docs` | OpenAPI browser |
 
@@ -248,7 +272,7 @@ method and its caveats.
 ## Tests
 
 ```bash
-python -m pytest tests/ -q      # 469 tests
+python -m pytest tests/ -q      # 534 tests
 python tools/verify_ble_frame.py
 ```
 
@@ -256,6 +280,9 @@ python tools/verify_ble_frame.py
   length field, header CRC-8, trailing CRC-32, alarm and command payload layout.
 - `tests/test_ble_packets.py` — every command builder rebuilds a captured frame
   byte for byte, and the unverified commands raise instead of guessing.
+- `tests/test_alarm_scheduler.py` — the one-alarm limit, displacement, restart
+  reconciliation, retry limits and the cancel warning, all against fake
+  transports so the awkward paths are covered without a radio.
 - `tests/test_noop_adapter.py` — schema resolution (snake_case *and* camelCase),
   read-only enforcement, overrides, stage decoding, cold-start nulls.
 - `tests/test_analytics.py` — rolling means, period deltas, slopes and coverage
@@ -296,8 +323,11 @@ web/                vendored SPA (no build step, no external requests)
   chart.js          SVG line, bar and scatter; nulls break the path, never bridged
   journal.js        fast daily entry
   workouts.js       suggestions, manual entry, history
+  alarms.js         alarms/timers, strap state, loud failures
 app/ble/
   packets.py        WHOOP frame codec + command builders (pure, no radio)
+  transport.py      connect-send-disconnect, swappable backend, error classes
+  scheduler.py      pure plan() + the runner that executes it
 tools/
   verify_ble_frame.py   reproducible BLE frame verification
   bench_strap.py        Phase 4 hardware bench test — see docs/PHASE4_BENCH.md

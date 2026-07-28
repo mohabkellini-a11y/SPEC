@@ -361,3 +361,47 @@ main { padding-bottom: 84px !important; }
 .form-msg.err { color: var(--red); }
 
 details > summary { list-style: revert; }
+
+/* ---------- Phase 4: alarms ---------- */
+
+.quick-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.quick-row .btn { flex: 1 1 calc(50% - 4px); }
+
+.alarm-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 0; border-bottom: 1px solid var(--line);
+}
+.alarm-row:last-of-type { border-bottom: none; }
+.alarm-main { flex: 1; min-width: 0; }
+.alarm-time {
+  font-size: 26px; font-weight: 700; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+.alarm-when { font-size: 13px; font-weight: 500; color: var(--muted); }
+.alarm-label { font-size: 15px; color: var(--text); margin-top: 2px; }
+
+.alarm-status {
+  font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
+  margin-top: 4px; font-weight: 600;
+}
+.alarm-status.good { color: var(--accent); }
+.alarm-status.queued { color: var(--muted); }
+.alarm-status.bad { color: var(--red); }
+
+.alarm-note { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+.alarm-error {
+  font-size: 12px; color: #ffb3b3; margin-top: 6px; line-height: 1.4;
+  background: #221111; border: 1px solid #5c2626; border-radius: 8px; padding: 6px 8px;
+}
+.alarm-countdown {
+  font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums;
+  white-space: nowrap; padding-top: 6px;
+}
+.alarm-actions { display: flex; align-items: center; gap: 6px; padding-top: 2px; }
+.btn.small { flex: none; min-height: 40px; padding: 0 14px; font-size: 14px; }
+
+.alarm-row.state-failed .alarm-time { color: var(--red); }
+.warn-text { color: var(--yellow) !important; }
+
+#strap-test-btn { margin-top: 12px; }
+#strap-test-btn:disabled { opacity: .4; }

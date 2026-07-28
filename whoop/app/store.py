@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 HABIT_TYPES = ("bool", "scale", "number")
 
@@ -103,6 +103,30 @@ MIGRATIONS: dict[int, tuple[str, ...]] = {
             dismissed_at   TEXT NOT NULL
         )
         """,
+    ),
+    2: (
+        # Phase 4. Alarms persist here so a pending alarm survives a restart —
+        # and, because the strap stores an absolute time, so does the alarm
+        # itself even if this machine is off when it fires.
+        """
+        CREATE TABLE alarms (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            fire_at     INTEGER NOT NULL,
+            label       TEXT,
+            kind        TEXT    NOT NULL DEFAULT 'alarm'
+                        CHECK (kind IN ('alarm','timer')),
+            state       TEXT    NOT NULL DEFAULT 'pending'
+                        CHECK (state IN ('pending','armed','fired','failed','cancelled')),
+            attempts    INTEGER NOT NULL DEFAULT 0,
+            last_error  TEXT,
+            frame_hex   TEXT,
+            armed_at    TEXT,
+            created_at  TEXT    NOT NULL,
+            updated_at  TEXT    NOT NULL
+        )
+        """,
+        "CREATE INDEX idx_alarms_fire_at ON alarms(fire_at)",
+        "CREATE INDEX idx_alarms_state ON alarms(state)",
     ),
 }
 
@@ -532,11 +556,86 @@ class AppStore:
             ).fetchall()
         return [(int(r["start_ts"]), int(r["end_ts"])) for r in rows]
 
+    # -- alarms (Phase 4) ------------------------------------------------
+
+    ALARM_STATES = ("pending", "armed", "fired", "failed", "cancelled")
+
+    def create_alarm(self, fire_at: int, label: str | None = None,
+                     kind: str = "alarm") -> dict[str, Any]:
+        if kind not in ("alarm", "timer"):
+            raise StoreError("kind must be 'alarm' or 'timer'")
+        if not 0 < int(fire_at) <= 0xFFFFFFFF:
+            raise StoreError("fire_at must be a positive unix time within u32")
+        with self.connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO alarms (fire_at, label, kind, state, created_at, updated_at) "
+                "VALUES (?,?,?,'pending',?,?)",
+                (int(fire_at), label, kind, _now(), _now()),
+            )
+            row = conn.execute("SELECT * FROM alarms WHERE id = ?", (cur.lastrowid,)).fetchone()
+        return dict(row)
+
+    def alarm(self, alarm_id: int) -> dict[str, Any]:
+        with self.connect() as conn:
+            row = conn.execute("SELECT * FROM alarms WHERE id = ?", (alarm_id,)).fetchone()
+        if row is None:
+            raise StoreError(f"No alarm with id {alarm_id}")
+        return dict(row)
+
+    def alarms(self, states: tuple[str, ...] | None = None,
+               limit: int = 200) -> list[dict[str, Any]]:
+        sql = "SELECT * FROM alarms"
+        params: list[Any] = []
+        if states:
+            unknown = [s for s in states if s not in self.ALARM_STATES]
+            if unknown:
+                raise StoreError(f"Unknown alarm state(s): {', '.join(unknown)}")
+            sql += f" WHERE state IN ({','.join('?' * len(states))})"
+            params = list(states)
+        sql += " ORDER BY fire_at ASC LIMIT ?"
+        params.append(limit)
+        with self.connect() as conn:
+            return [dict(r) for r in conn.execute(sql, params)]
+
+    def update_alarm(self, alarm_id: int, **fields: Any) -> dict[str, Any]:
+        allowed = {"fire_at", "label", "state", "attempts", "last_error",
+                   "frame_hex", "armed_at"}
+        updates = {k: v for k, v in fields.items() if k in allowed}
+        if "state" in updates and updates["state"] not in self.ALARM_STATES:
+            raise StoreError(f"Unknown alarm state: {updates['state']}")
+        if not updates:
+            return self.alarm(alarm_id)
+        updates["updated_at"] = _now()
+        assignments = ", ".join(f'"{k}" = ?' for k in updates)
+        with self.connect() as conn:
+            cur = conn.execute(f"UPDATE alarms SET {assignments} WHERE id = ?",
+                               (*updates.values(), alarm_id))
+            if cur.rowcount == 0:
+                raise StoreError(f"No alarm with id {alarm_id}")
+            row = conn.execute("SELECT * FROM alarms WHERE id = ?", (alarm_id,)).fetchone()
+        return dict(row)
+
+    def bump_alarm_attempt(self, alarm_id: int) -> int:
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE alarms SET attempts = attempts + 1, updated_at = ? WHERE id = ?",
+                (_now(), alarm_id))
+            row = conn.execute("SELECT attempts FROM alarms WHERE id = ?", (alarm_id,)).fetchone()
+        if row is None:
+            raise StoreError(f"No alarm with id {alarm_id}")
+        return int(row["attempts"])
+
+    def delete_alarm(self, alarm_id: int) -> None:
+        with self.connect() as conn:
+            if conn.execute("DELETE FROM alarms WHERE id = ?", (alarm_id,)).rowcount == 0:
+                raise StoreError(f"No alarm with id {alarm_id}")
+
     # -- export ----------------------------------------------------------
 
     def export_all(self) -> dict[str, list[dict[str, Any]]]:
         """Every row this app owns. Phase 5 wires it to CSV/JSON download."""
-        tables = ("habits", "habit_entries", "day_notes", "workouts", "dismissed_suggestions")
+        tables = ("habits", "habit_entries", "day_notes", "workouts",
+                  "dismissed_suggestions", "alarms")
         out: dict[str, list[dict[str, Any]]] = {}
         with self.connect() as conn:
             for table in tables:
@@ -555,6 +654,7 @@ class AppStore:
                 "day_notes": count("day_notes"),
                 "workouts": count("workouts"),
                 "dismissed_suggestions": count("dismissed_suggestions"),
+                "alarms": count("alarms"),
             }
 
 

@@ -174,9 +174,43 @@
   </section>
 </div><!-- /view-workouts -->
 
+<div id="view-alarms" class="hidden">
+  <div id="alarm-banner" class="banner hidden" role="status"></div>
+
+  <section class="card">
+    <div class="card-head"><h2>Strap</h2></div>
+    <p class="strap-state">
+      <span class="dot" id="alarm-strap-dot"></span>
+      <span id="alarm-strap-text">checking…</span>
+    </p>
+    <p class="card-note" id="alarm-strap-note"></p>
+    <button id="strap-test-btn" class="big-btn" type="button">Test buzz (20s)</button>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Timer</h2></div>
+    <div class="quick-row" id="quick-timers"></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Alarm</h2></div>
+    <form id="alarm-form" class="stack">
+      <input id="alarm-time" class="inp" type="time" required>
+      <input id="alarm-label" class="inp" type="text" placeholder="Label (optional)" maxlength="120">
+      <button class="big-btn" type="submit">Set alarm</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Scheduled</h2></div>
+    <div id="alarm-list"></div>
+    <p class="card-note" id="alarm-limit-note"></p>
+  </section>
+</div><!-- /view-alarms -->
+
   <p class="disclaimer" id="disclaimer"></p>
-  <p class="build">Phase 3 — dashboard, trends, journal and workout log.
-     Strap alarms and export are not built yet.</p>
+  <p class="build">Phase 4 — dashboard, trends, journal, workouts and strap
+     alarms. PWA packaging, correlations and export are not built yet.</p>
 </main>
 
 <nav class="tabbar" role="tablist">
@@ -184,6 +218,7 @@
   <button class="tab" data-view="trends" role="tab" aria-selected="false">Trends</button>
   <button class="tab" data-view="journal" role="tab" aria-selected="false">Journal</button>
   <button class="tab" data-view="workouts" role="tab" aria-selected="false">Workouts</button>
+  <button class="tab" data-view="alarms" role="tab" aria-selected="false">Alarms</button>
 </nav>
 
 <!-- metric detail sheet -->

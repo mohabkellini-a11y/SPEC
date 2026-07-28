@@ -35,6 +35,7 @@ class Settings:
     display_tz: str
     schema_map_path: Path
     app_db_path: Path
+    strap_address: str
     web_dir: Path = field(default=REPO_ROOT / "web")
 
     @property
@@ -71,6 +72,10 @@ def load_settings() -> Settings:
         display_tz=os.getenv("DISPLAY_TZ", "UTC"),
         schema_map_path=schema_map,
         app_db_path=app_db,
+        # Phase 4. Empty until you have run tools/bench_strap.py --scan.
+        # With no address the dashboard still schedules alarms; it just reports
+        # honestly that it cannot put them on the strap.
+        strap_address=os.getenv("STRAP_ADDRESS", "").strip(),
     )
 
 

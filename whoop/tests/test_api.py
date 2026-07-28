@@ -143,11 +143,14 @@ def test_heart_rate_respects_max_points(client: TestClient):
 # --- strap state -----------------------------------------------------------
 
 
-def test_strap_state_is_honest_about_phase_1(client: TestClient):
+def test_strap_state_reports_idle_and_the_never_hold_policy(client: TestClient):
+    """No connection is held while idle — the brief's hard constraint."""
     body = client.get("/api/strap/state").json()
-    assert body["implemented"] is False
     assert body["state"] == "idle"
-    assert "Phase 4" in body["message"]
+    assert "never held while idle" in body["connection_policy"].replace(
+        "is ever held while idle", "never held while idle")
+    assert body["available"] is False          # no STRAP_ADDRESS in tests
+    assert "bench_strap" in body["hint"]
 
 
 # --- failure modes ---------------------------------------------------------

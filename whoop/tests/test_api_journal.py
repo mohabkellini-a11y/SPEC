@@ -364,6 +364,7 @@ def test_health_ok_when_only_the_app_db_exists(tmp_path: Path, monkeypatch: pyte
 
 
 def test_store_stats_endpoint(client: TestClient):
+    from app.store import SCHEMA_VERSION
     body = client.get("/api/store/stats").json()
-    assert body["schema_version"] == 1
-    assert set(body) >= {"habits", "habit_entries", "day_notes", "workouts"}
+    assert body["schema_version"] == SCHEMA_VERSION
+    assert set(body) >= {"habits", "habit_entries", "day_notes", "workouts", "alarms"}

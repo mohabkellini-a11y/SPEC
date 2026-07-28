@@ -29,9 +29,30 @@ def store(tmp_path: Path) -> AppStore:
 
 
 def test_migration_creates_schema_and_sets_version(tmp_path: Path):
+    from app.store import SCHEMA_VERSION
     s = AppStore(tmp_path / "fresh.sqlite3")
-    assert s.migrate() == 1
-    assert s.version() == 1
+    assert s.migrate() == SCHEMA_VERSION
+    assert s.version() == SCHEMA_VERSION
+
+
+def test_migrations_apply_in_order_from_an_older_database(tmp_path: Path):
+    """An existing v1 database must be upgraded in place, not rejected."""
+    import sqlite3
+    from app.store import MIGRATIONS
+
+    path = tmp_path / "old.sqlite3"
+    conn = sqlite3.connect(path)
+    for statement in MIGRATIONS[1]:
+        conn.execute(statement)
+    conn.execute("PRAGMA user_version = 1")
+    conn.commit()
+    conn.close()
+
+    s = AppStore(path)
+    assert s.migrate() == 2
+    # The v2 table now exists and the v1 data model is untouched.
+    s.create_alarm(fire_at=1_800_000_000, label="ok")
+    assert len(s.alarms()) == 1
 
 
 def test_migration_is_idempotent(store: AppStore):
@@ -284,9 +305,11 @@ def test_export_includes_every_owned_table(store: AppStore):
     store.create_workout(day="2026-07-01", type_="Run", duration_s=600)
     store.dismiss_suggestion("w9", "2026-07-01")
 
+    store.create_alarm(fire_at=1_800_000_000, label="Wake")
+
     dump = store.export_all()
     assert set(dump) == {"habits", "habit_entries", "day_notes", "workouts",
-                         "dismissed_suggestions"}
+                         "dismissed_suggestions", "alarms"}
     assert all(len(rows) >= 1 for rows in dump.values())
 
 
