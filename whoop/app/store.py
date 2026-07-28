@@ -420,7 +420,10 @@ class AppStore:
         if start_day and end_day:
             sql += " WHERE day BETWEEN ? AND ?"
             params = [start_day, end_day]
-        sql += " ORDER BY COALESCE(start_ts, 0) DESC, id DESC"
+        # Order by day first. A manually logged workout has no start_ts, so
+        # sorting on that alone drops every manual entry to the bottom and then
+        # orders them by insertion, which reads as scrambled dates.
+        sql += " ORDER BY day DESC, COALESCE(start_ts, 0) DESC, id DESC"
         with self.connect() as conn:
             return [dict(r) for r in conn.execute(sql, params)]
 

@@ -306,3 +306,16 @@ def test_store_is_a_separate_file_from_noops(tmp_path: Path):
 
     assert s.path != noop
     assert (noop.stat().st_mtime_ns, noop.stat().st_size) == before
+
+
+def test_workout_history_is_ordered_by_day_regardless_of_timestamps(store: AppStore):
+    """Manual entries have no start_ts; they must still sort chronologically."""
+    store.create_workout(day="2026-07-09", type_="Trail run", duration_s=3840)
+    store.create_workout(day="2026-07-16", type_="Long ride", duration_s=5700)
+    store.create_workout(day="2026-07-12", type_="Barbell", duration_s=3000)
+    store.create_workout(day="2026-07-20", type_="Intervals", duration_s=3180,
+                         start_ts=1784000000, end_ts=1784003180, source="confirmed",
+                         suggestion_key="w1")
+
+    days = [w["day"] for w in store.workouts("2026-07-01", "2026-07-31")]
+    assert days == ["2026-07-20", "2026-07-16", "2026-07-12", "2026-07-09"]
