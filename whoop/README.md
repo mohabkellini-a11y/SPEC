@@ -28,6 +28,9 @@ truth — that nothing is connected to the strap yet.
 
 The one thing still unproven is the BLE transport — see point 2 below.
 
+**New here? Read [`docs/START_HERE.md`](docs/START_HERE.md)** — the same setup in
+plain English, step by step, including how to connect the strap.
+
 ---
 
 ## Read this before you start

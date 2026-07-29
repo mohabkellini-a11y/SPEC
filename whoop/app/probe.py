@@ -13,6 +13,7 @@ Everything it does is read-only.
 from __future__ import annotations
 
 import argparse
+import platform
 import sqlite3
 import sys
 from pathlib import Path
@@ -65,8 +66,21 @@ def cmd_find() -> int:
     print("Searching for NOOP-shaped SQLite files...\n")
     candidates = find_candidates()
     if not candidates:
-        print("Nothing found. NOOP may store its DB elsewhere on this machine.")
-        print("Find it manually and set NOOP_DB_PATH in .env.")
+        print("Nothing found in the usual places.\n")
+        print("NOOP may store its database somewhere else. Search your whole home")
+        print("folder with one of these, then put the winner in .env:\n")
+        system = platform.system()
+        if system == "Darwin":
+            print('  find ~ -name "*.sqlite*" -newermt "-90 days" 2>/dev/null | grep -i -E "noop|strand|whoop"')
+            print("\nIf that finds nothing either, NOOP may not have created its")
+            print("database yet. Open NOOP, let it sync your strap once, then retry.")
+        elif system == "Windows":
+            print('  Get-ChildItem -Path $HOME -Recurse -Include *.sqlite,*.sqlite3,*.db '
+                  '-ErrorAction SilentlyContinue | Select-String -Pattern "noop" -SimpleMatch')
+        else:
+            print('  find ~ -name "*.sqlite*" -o -name "*.db" 2>/dev/null | grep -i -E "noop|strand|whoop"')
+        print("\nAny SQLite file will do — point NOOP_DB_PATH at it and run")
+        print("`python -m app.probe` to check whether it is the right one.")
         return 1
     for path in candidates:
         ok, detail = looks_like_noop(path)
