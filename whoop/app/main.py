@@ -1,10 +1,12 @@
 """FastAPI backend. Local-first: binds to the LAN, talks to nothing external.
 
-Phase 1-3 scope: read-only Today view and trends over NOOP's database, plus a
-habit journal and workout log in this app's OWN database.
-BLE alarms (Phase 4) and PWA packaging/export/correlations (Phase 5) are not
-implemented yet; endpoints that would serve them are absent rather than stubbed
-with fake data.
+All five phases: a read-only Today view and trends over NOOP's database; a habit
+journal, workout log and alarm schedule in this app's OWN database; BLE alarms;
+and correlations, export and PWA packaging.
+
+Nothing here is stubbed with fake data. Where something cannot be verified — an
+alarm the strap may not have taken, a metric NOOP does not store — the response
+says so rather than inventing a value.
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ from .metrics_meta import (
     TREND_METRICS,
 )
 from .routes_alarms import get_scheduler, router as alarms_router
+from .routes_export import router as export_router
 from .routes_journal import get_store, router as journal_router
 from .noop_adapter import (
     NoopAdapter,
@@ -60,7 +63,7 @@ app = FastAPI(
     title="WHOOP local dashboard",
     description="Local-first personal dashboard over NOOP's on-device data. "
                 "No cloud, no accounts, no WHOOP servers.",
-    version="0.4.0-phase4",
+    version="0.5.0-phase5",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
     lifespan=lifespan,
@@ -70,6 +73,7 @@ adapter = NoopAdapter(settings.noop_db_path, settings.schema_map_path)
 
 app.include_router(journal_router)
 app.include_router(alarms_router)
+app.include_router(export_router)
 
 
 def _clean(row: dict[str, Any] | None) -> dict[str, Any]:
@@ -94,7 +98,7 @@ def health() -> dict[str, Any]:
     """Cheap liveness + whether the NOOP database is reachable at all."""
     out: dict[str, Any] = {
         "ok": True,
-        "phase": 4,
+        "phase": 5,
         "noop_db_path": str(settings.noop_db_path) if settings.noop_db_path else None,
         "noop_db_configured": settings.noop_db_path is not None,
         "noop_db_present": settings.noop_db_exists,
@@ -338,6 +342,23 @@ if settings.web_dir.is_dir():
     @app.get("/")
     def index() -> FileResponse:
         return FileResponse(settings.web_dir / "index.html")
+
+    @app.get("/sw.js", include_in_schema=False)
+    def service_worker() -> FileResponse:
+        """Served from the root so its scope covers the whole app.
+
+        A worker at /static/sw.js could only control /static/, which is useless.
+        """
+        return FileResponse(
+            settings.web_dir / "sw.js",
+            media_type="application/javascript",
+            headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"},
+        )
+
+    @app.get("/manifest.webmanifest", include_in_schema=False)
+    def manifest() -> FileResponse:
+        return FileResponse(settings.web_dir / "manifest.webmanifest",
+                            media_type="application/manifest+json")
 
 
 def run() -> None:

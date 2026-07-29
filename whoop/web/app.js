@@ -9,6 +9,7 @@ import { renderCoverage, renderLineChart } from '/static/chart.js';
 import { initJournal, loadJournal } from '/static/journal.js';
 import { initWorkouts, loadWorkouts } from '/static/workouts.js';
 import { initAlarms, loadAlarms } from '/static/alarms.js';
+import { clearStale, initMore, loadMore, registerServiceWorker, showStale } from '/static/more.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -38,6 +39,16 @@ async function getJSON(url) {
   const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
   let body = null;
   try { body = await res.json(); } catch { /* non-JSON error page */ }
+
+  // The service worker marks anything it served from its cache. Rendering a
+  // stale recovery score as today's would be the worst bug this app could have,
+  // so the banner goes up the moment one appears.
+  if (res.headers.get('X-Served-From-Cache')) {
+    showStale(Number(res.headers.get('X-Cached-At')) || 0);
+  } else if (res.ok) {
+    clearStale();
+  }
+
   if (!res.ok) {
     const detail = body && (body.detail || body.error) || `HTTP ${res.status}`;
     throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
@@ -517,7 +528,7 @@ async function loadTrends() {
 // ---------- view switching ----------
 
 const VIEW_TITLE = { today: 'Today', trends: 'Trends', journal: 'Journal',
-                     workouts: 'Workouts', alarms: 'Alarms' };
+                     workouts: 'Workouts', alarms: 'Alarms', more: 'More' };
 // Today and Journal are both per-day views, so the header arrows drive whichever
 // is showing. Trends and Workouts are windowed, so the arrows hide.
 const DAY_VIEWS = new Set(['today', 'journal']);
@@ -548,6 +559,7 @@ function showView(name) {
   }
   if (name === 'workouts') loadWorkouts();
   if (name === 'alarms') loadAlarms();
+  if (name === 'more') loadMore();
   if (name === 'today') setDayLabel(VIEW_DAY);
 }
 
@@ -595,4 +607,10 @@ load(null).then(() => {
   initJournal(() => JOURNAL_DAY);
   initWorkouts(TODAY_KEY);
   initAlarms();
+  initMore();
+  registerServiceWorker();
+
+  // ?view=journal etc. — used by the manifest shortcuts.
+  const requested = new URLSearchParams(location.search).get('view');
+  if (requested && VIEW_TITLE[requested]) showView(requested);
 });

@@ -11,7 +11,7 @@ and not WHOOP's proprietary scores.
 
 ---
 
-## Status: Phase 4 of 5
+## Status: all five phases built
 
 | Phase | Scope | State |
 |-------|-------|-------|
@@ -20,14 +20,13 @@ and not WHOOP's proprietary scores.
 | 2 | Trends + 7/30/90-day charts | **done** |
 | 3 | Habit journal + workout log | **done** |
 | 4 | BLE alarm + countdown timer | **built** — unverified on hardware, see below |
-| 5 | PWA packaging, correlations, export | not started |
+| 5 | PWA packaging, correlations, export | **done** |
 
 Endpoints for unbuilt phases are absent rather than stubbed with fake data. The
 one exception is `GET /api/strap/state`, which exists so the UI can display the
 truth — that nothing is connected to the strap yet.
 
-The correlations view is Phase 5, because it needs the habit journal from
-Phase 3 to correlate anything against.
+The one thing still unproven is the BLE transport — see point 2 below.
 
 ---
 
@@ -218,6 +217,18 @@ yoga is indistinguishable from sitting at a desk when all you have is heart rate
 Log those by hand. Nothing is ever written to your log without you confirming it,
 and dismissals are remembered by a key that survives re-detection.
 
+### A correlation is never presented as a cause
+The correlations view splits your days into two groups and shows the means side
+by side. It leads with "descriptive only", and refuses to headline anything where
+the smaller group has under 5 days — it says so instead. Days you did not log are
+dropped, never counted as zero.
+
+The default lag is 1, and that is not arbitrary: NOOP files a night's sleep under
+the day it **ends** (`SCHEMA_NOTES.md` §1.4), so Friday's drink belongs with
+Saturday's recovery. Lag 0 would compare Friday's drink against Thursday night —
+the night before it happened. Choosing lag 0 produces a warning saying exactly
+that.
+
 ### An alarm that is not set never looks like one that is
 The strap stores an **absolute** time, so an armed alarm fires on the strap's own
 clock — this machine can be asleep or off. But the strap holds **one alarm at a
@@ -238,6 +249,56 @@ otherwise would be a lie you would only discover at 6am.
 approximation status for every displayed value. The UI renders tiles *from* that
 table, so a tile cannot exist without declaring what it is. Tap any tile for the
 method and its caveats.
+
+---
+
+## Installing on your phone
+
+Open the dashboard in Safari on your iPhone, tap **Share → Add to Home Screen**.
+It launches full-screen with no browser chrome, its own icon and the dark theme.
+
+**One honest limitation.** Browsers only allow service workers on `https://` or
+`localhost`. Your LAN address is plain `http://192.168.x.x`, which is not a
+secure context, so:
+
+* installing to the home screen — **works**
+* running full-screen — **works**
+* offline caching — **does not register**; the app needs the server reachable
+
+The More screen reports which state you are in rather than leaving you to guess.
+For offline support, serve over HTTPS with a self-signed certificate:
+
+```bash
+openssl req -x509 -newkey rsa:2048 -nodes -days 825 \
+  -keyout key.pem -out cert.pem -subj "/CN=strap.local" \
+  -addext "subjectAltName=IP:192.168.1.42"        # your machine's LAN IP
+
+uvicorn app.main:app --host 0.0.0.0 --port 8765 \
+  --ssl-keyfile key.pem --ssl-certfile cert.pem
+```
+
+iOS warns about the certificate the first time; accepting it once is enough.
+
+With the service worker active, anything served from cache is stamped and the app
+shows **"Offline — showing saved data, last updated HH:MM"**. Stale biometrics
+rendered as current would be the worst bug this app could have, so they are
+always labelled. Writes are never queued offline — an alarm that did not reach
+the server has not happened.
+
+---
+
+## Export
+
+Everything, in one download, from the More screen or directly:
+
+* `/api/export.csv` — a zip with one CSV per table, plus a README explaining each
+  file and a `meta.json`
+* `/api/export.json` — the same data as a single JSON document
+* `/api/export/journal.csv` — one table on its own
+
+The journal export resolves habit names, so `journal.csv` is readable in a
+spreadsheet without joining anything. A habit with no row for a day was **not
+logged** — different from a logged zero, which appears as `value=0.0`.
 
 ---
 
@@ -264,6 +325,11 @@ method and its caveats.
 | `GET /api/alarms/status` | Scheduler + strap status |
 | `GET /api/strap/state` | Live BLE connection state |
 | `POST /api/strap/test?seconds=` | Throwaway alarm to confirm it buzzes |
+| `GET /api/correlations/options` | What can be correlated against what |
+| `GET /api/correlations?habit_id=&metric=&days=&lag=` | Habit vs metric, descriptive |
+| `GET /api/export.json`, `/api/export.csv` | Everything, as JSON or a zip of CSVs |
+| `GET /api/export/{table}.csv` | One table |
+| `GET /api/export/summary` | Row counts, before you download |
 | `GET /api/strap/state` | BLE connection state (Phase 1: always idle) |
 | `GET /api/docs` | OpenAPI browser |
 
@@ -272,7 +338,7 @@ method and its caveats.
 ## Tests
 
 ```bash
-python -m pytest tests/ -q      # 534 tests
+python -m pytest tests/ -q      # 581 tests
 python tools/verify_ble_frame.py
 ```
 
@@ -292,8 +358,11 @@ python tools/verify_ble_frame.py
 - `tests/test_workout_detect.py` — synthetic HR days with known answers, including
   the false-positive case the extra gates exist to reject and the low-intensity
   case they knowingly miss.
-- `tests/test_api.py`, `tests/test_api_journal.py` — the honest-empty-state
-  contract and every failure mode.
+- `tests/test_correlations.py` — the lag arithmetic (the easiest thing here to
+  get backwards) and the refusal to overstate thin data.
+- `tests/test_api.py`, `tests/test_api_journal.py`, `tests/test_api_alarms.py`,
+  `tests/test_api_export.py` — the honest-empty-state contract and every failure
+  mode, plus the export round-trip and the PWA assets.
 
 To see the gap handling for yourself, build a fixture and delete some days:
 
@@ -324,6 +393,12 @@ web/                vendored SPA (no build step, no external requests)
   journal.js        fast daily entry
   workouts.js       suggestions, manual entry, history
   alarms.js         alarms/timers, strap state, loud failures
+  more.js           correlations, export, install status
+  sw.js             service worker; marks anything served from cache as stale
+  manifest.webmanifest, icons/
+app/
+  correlations.py   habit-vs-metric comparison (pure, descriptive only)
+  routes_export.py  correlations + export endpoints
 app/ble/
   packets.py        WHOOP frame codec + command builders (pure, no radio)
   transport.py      connect-send-disconnect, swappable backend, error classes
@@ -332,6 +407,7 @@ tools/
   verify_ble_frame.py   reproducible BLE frame verification
   bench_strap.py        Phase 4 hardware bench test — see docs/PHASE4_BENCH.md
   make_fixture.py       synthetic NOOP-shaped database
+  make_icons.py         generates the PWA icons locally, no dependencies
 tests/
 SCHEMA_NOTES.md     what NOOP's data model is, and what could not be verified
 BLE_NOTES.md        GATT UUIDs, frame format, and what is deliberately stubbed

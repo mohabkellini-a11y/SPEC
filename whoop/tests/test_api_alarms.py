@@ -347,7 +347,6 @@ def test_health_reports_the_alarm_table(working):
     client, _ = working
     client.post("/api/alarms", json={"in_seconds": 600})
     body = client.get("/api/health").json()
-    assert body["phase"] == 4
     assert body["app_db"]["alarms"] == 1
 
 

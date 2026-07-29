@@ -9,6 +9,16 @@
 <!-- Inline so the page makes zero external requests. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%2318c98b' stroke-width='5' stroke-dasharray='61 82' stroke-linecap='round' transform='rotate(-90 16 16)'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/styles.css">
+
+<!-- PWA. iOS ignores the manifest's icons for the home screen and uses
+     apple-touch-icon, so both are declared. -->
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Strap">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="description" content="Local-first dashboard for a WHOOP strap you own.">
 </head>
 <body>
 
@@ -24,6 +34,7 @@
 <main id="main">
 
   <!-- connection / data-state banner -->
+  <div id="offline-banner" class="banner warn hidden" role="status"></div>
   <div id="banner" class="banner hidden" role="status"></div>
 
 <div id="view-today">
@@ -208,9 +219,44 @@
   </section>
 </div><!-- /view-alarms -->
 
+<div id="view-more" class="hidden">
+  <section class="card">
+    <div class="card-head">
+      <h2>Correlations</h2>
+      <span class="pill approx">descriptive</span>
+    </div>
+    <div class="stack">
+      <select id="corr-habit" class="inp"></select>
+      <select id="corr-metric" class="inp"></select>
+      <div class="range-row">
+        <button class="corr-range is-on" data-days="30">30d</button>
+        <button class="corr-range" data-days="90">90d</button>
+        <button class="corr-range" data-days="365">1y</button>
+      </div>
+    </div>
+    <div id="corr-result"></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Export everything</h2></div>
+    <p class="card-note" id="export-counts">counting…</p>
+    <div class="stack">
+      <a class="big-btn" id="export-zip" href="/api/export.csv" download>Download CSV (.zip)</a>
+      <a class="big-btn" id="export-json" href="/api/export.json" download>Download JSON</a>
+    </div>
+    <p class="card-note">Your journal, notes, workouts and alarms, plus a read-only
+       copy of NOOP's daily metrics and sleep sessions. No filtering you cannot see.</p>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Install on your phone</h2></div>
+    <p class="card-note" id="pwa-state">checking…</p>
+  </section>
+</div><!-- /view-more -->
+
   <p class="disclaimer" id="disclaimer"></p>
-  <p class="build">Phase 4 — dashboard, trends, journal, workouts and strap
-     alarms. PWA packaging, correlations and export are not built yet.</p>
+  <p class="build">All five phases built. Alarms are unverified on real hardware
+     until the bench test passes — see docs/PHASE4_BENCH.md.</p>
 </main>
 
 <nav class="tabbar" role="tablist">
@@ -219,6 +265,7 @@
   <button class="tab" data-view="journal" role="tab" aria-selected="false">Journal</button>
   <button class="tab" data-view="workouts" role="tab" aria-selected="false">Workouts</button>
   <button class="tab" data-view="alarms" role="tab" aria-selected="false">Alarms</button>
+  <button class="tab" data-view="more" role="tab" aria-selected="false">More</button>
 </nav>
 
 <!-- metric detail sheet -->
